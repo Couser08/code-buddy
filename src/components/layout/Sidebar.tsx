@@ -1,302 +1,226 @@
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Home,
-  Presentation,
+  Video,
+  FileCode2,
   Code2,
-  FileText,
-  FolderKanban,
-  Trophy,
-  History,
-  Settings,
-  Diamond,
-  ArrowRight,
-  Sparkles,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  ShieldCheck,
-  GraduationCap,
+  CheckSquare,
+  HelpCircle,
+  Users,
+  FolderGit2,
+  ArrowUpRight,
+  MoreVertical,
+  LogOut,
+  LogIn,
+  User
 } from 'lucide-react';
-import { Avatar } from '../common/Avatar';
+import { useAuthStore } from '../../stores/authStore';
 import { useSessionStore } from '../../stores/sessionStore';
-import { useAuthStore, isMentorEmail } from '../../stores/authStore';
-import { useUIStore } from '../../stores/uiStore';
-import { cn } from '../../lib/utils';
 
-export const Sidebar: React.FC = () => {
-  const currentUser = useSessionStore((state) => state.currentUser);
-  const { user: authUser, openAuthModal, openProfileModal } = useAuthStore();
-  const activeUser = authUser || currentUser;
-  const isMentor = isMentorEmail(activeUser?.email) || activeUser?.role === 'mentor';
-  const isUserPro = isMentor || Boolean(activeUser?.isPro);
-  const {
-    activeNavTab,
-    setActiveNavTab,
-    isSidebarCollapsed,
-    toggleSidebarCollapse,
-    isMobileMenuOpen,
-    setMobileMenuOpen,
-  } = useUIStore();
+interface SidebarProps {
+  onOpenQuickDoubt?: () => void;
+  onOpenAuth?: () => void;
+}
 
-  const navLinks = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'sessions', label: 'Sessions', icon: Presentation },
-    { id: 'languages', label: 'Languages', icon: Code2 },
-    { id: 'my-notes', label: 'My Notes', icon: FileText },
-    { id: 'subscription', label: 'Pro Plans (₹0)', icon: Sparkles },
-    { id: 'resources', label: 'Resources', icon: FolderKanban },
-    { id: 'achievements', label: 'Achievements', icon: Trophy },
-    { id: 'history', label: 'History', icon: History },
-    { id: 'settings', label: 'Settings', icon: Settings },
+export const Sidebar: React.FC<SidebarProps> = ({ onOpenQuickDoubt, onOpenAuth }) => {
+  const navigate = useNavigate();
+  const { user, profile, isAdmin, signOut } = useAuthStore();
+  const { doubts } = useSessionStore();
+  const [showRoleMenu, setShowRoleMenu] = useState(false);
+
+  const openDoubtsCount = doubts.filter((d) => d.status === 'open').length;
+
+  const navItems = [
+    { name: 'Home', href: '/', icon: Home },
+    { name: 'Live Class', href: '/live', icon: Video, badge: 'LIVE', badgeColor: 'bg-red-500 text-white' },
+    { name: 'C Playground', href: '/playground', icon: Code2, badge: 'Free IDE', badgeColor: 'bg-emerald-100 text-emerald-800' },
+    { name: 'Tasks', href: '/tasks', icon: FileCode2 },
+    { name: 'Submissions', href: '/submissions', icon: CheckSquare },
+    { name: 'Doubts', href: '/doubts', icon: HelpCircle, badge: openDoubtsCount || 3 },
+    { name: 'Students', href: '/students', icon: Users },
+    { name: 'Resources', href: '/resources', icon: FolderGit2 },
   ];
 
-  const handleProUpgrade = () => {
-    setActiveNavTab('subscription');
-  };
-
-  const sidebarContent = (
-    <div className="h-full flex flex-col justify-between p-3.5 select-none overflow-x-hidden">
-      {/* Top Header / Brand */}
+  return (
+    <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between p-5 select-none shrink-0 h-screen sticky top-0">
+      {/* Brand Header */}
       <div>
-        <div className="flex items-center justify-between pb-4 pt-1 px-1">
-          <div
-            onClick={() => setActiveNavTab('home')}
-            className="flex items-center gap-2.5 cursor-pointer group"
-          >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#6366F1] to-[#4F46E5] text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
-              <Code2 className="w-5 h-5" />
-            </div>
-            {!isSidebarCollapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="flex items-center gap-1"
-              >
-                <span className="font-extrabold text-xl tracking-tight text-slate-900 dark:text-white">
-                  CodeBuddy
-                </span>
-                <Sparkles className="w-3.5 h-3.5 text-indigo-500 fill-indigo-500/40" />
-              </motion.div>
-            )}
+        <div 
+          onClick={() => navigate('/')}
+          className="flex items-center gap-3 cursor-pointer group mb-8 px-2"
+        >
+          <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center text-white font-bold text-lg shadow-sm group-hover:scale-105 transition-transform">
+            C/
           </div>
-
-          {/* Desktop Collapse Toggle Button */}
-          <button
-            onClick={toggleSidebarCollapse}
-            className="hidden lg:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
-            title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-
-          {/* Mobile Close Button */}
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div>
+            <h1 className="font-bold text-slate-900 text-lg leading-tight tracking-tight">
+              CodeClass
+            </h1>
+            <p className="text-xs text-slate-400 font-medium">
+              Learn • Code • Grow
+            </p>
+          </div>
         </div>
 
-        {/* Navigation Links */}
-        <nav className="space-y-1 mt-2">
-          {navLinks.map((item) => {
+        {/* Navigation Menu */}
+        <nav className="space-y-1.5">
+          {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeNavTab === item.id;
-
             return (
-              <button
-                key={item.id}
-                onClick={() => setActiveNavTab(item.id)}
-                title={isSidebarCollapsed ? item.label : undefined}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 cursor-pointer',
-                  isSidebarCollapsed ? 'justify-center px-2' : 'justify-start',
-                  isActive
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-[#4F46E5] dark:text-indigo-400 font-bold border border-indigo-100 dark:border-indigo-900/60 shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/60 font-medium'
-                )}
+              <NavLink
+                key={item.name}
+                to={item.href}
+                className={({ isActive }) =>
+                  `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-blue-50 text-blue-600 font-semibold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                  }`
+                }
               >
-                <Icon
-                  className={cn(
-                    'w-5 h-5 shrink-0 transition-colors',
-                    isActive ? 'text-accent-primary' : 'text-slate-500 dark:text-slate-400'
-                  )}
-                />
-                {!isSidebarCollapsed && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="truncate"
-                  >
-                    {item.label}
-                  </motion.span>
+                {({ isActive }) => (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <Icon
+                        className={`w-4 h-4 transition-colors ${
+                          isActive ? 'text-blue-600' : 'text-slate-500'
+                        }`}
+                      />
+                      <span>{item.name}</span>
+                    </div>
+
+                    {item.badge !== undefined && (
+                      <span
+                        className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                          item.badgeColor || 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </>
                 )}
-              </button>
+              </NavLink>
             );
           })}
         </nav>
       </div>
 
-      {/* Bottom Profile & Pro Banner */}
-      <div className="space-y-3 pt-4 border-t border-slate-200/60 dark:border-slate-800/70">
-        {/* User Card */}
-        <div
-          onClick={() => {
-            if (authUser) {
-              openProfileModal();
-            } else {
-              openAuthModal('signin');
-            }
-          }}
-          className={cn(
-            'bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-xs flex items-center gap-2.5 transition-all cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600 group/user',
-            isSidebarCollapsed ? 'p-2 justify-center' : 'p-2.5'
-          )}
-          title={authUser ? "View Profile & Teaching Role" : "Click to Sign In"}
+      {/* Bottom Section */}
+      <div className="space-y-4 pt-4 border-t border-slate-100">
+        {/* "Practice in Playground" Widget Card */}
+        <div 
+          onClick={() => navigate('/playground')}
+          className="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:bg-blue-100/70 transition-colors group"
         >
-          <Avatar
-            src={activeUser.avatarUrl}
-            name={activeUser.name}
-            isOnline={activeUser.isOnline}
-            size="sm"
-          />
-          {!isSidebarCollapsed && (
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1">
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                  {activeUser.name}
-                </h4>
-                <div className="flex items-center gap-1">
-                  {activeUser.role === 'mentor' ? (
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60">
-                      <ShieldCheck className="w-2.5 h-2.5" />
-                      <span>Mentor</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
-                      <GraduationCap className="w-2.5 h-2.5" />
-                      <span>Student</span>
-                    </span>
-                  )}
-                  {isUserPro && (
-                    <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded-md text-[9px] font-black bg-gradient-to-r from-amber-500 to-indigo-600 text-white shadow-2xs">
-                      <Sparkles className="w-2 h-2" />
-                      <span>PRO</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                <span className="truncate max-w-[110px]">{activeUser.email || 'Available'}</span>
-                <span className="text-indigo-500 opacity-0 group-hover/user:opacity-100 transition-opacity font-semibold">
-                  {authUser ? 'Profile' : 'Sign In'}
-                </span>
-              </div>
-            </div>
-          )}
+          <div>
+            <h4 className="text-xs font-bold text-blue-950 leading-snug">
+              C Sandbox IDE
+            </h4>
+            <p className="text-[11px] text-blue-600/90 leading-tight mt-0.5">
+              Practice C code with stdin & GCC.
+            </p>
+          </div>
+          <div className="w-7 h-7 rounded-full bg-white border border-blue-200 flex items-center justify-center text-blue-700 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0 shadow-xs">
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </div>
         </div>
 
-        {/* Upgrade Card / Pro Member Status */}
-        {!isSidebarCollapsed ? (
-          isUserPro ? (
-            <div className="rounded-2xl p-3 bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 border border-indigo-500/40 text-white shadow-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center">
-                    <Sparkles className="w-3 h-3" />
-                  </div>
-                  <span className="text-[11px] font-black tracking-tight">CodeBuddy PRO</span>
+        {/* User Profile Bar / Sign In Prompt */}
+        {user ? (
+          <div className="relative">
+            <div className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100/70 transition-colors">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
+                  {profile?.name ? profile.name[0].toUpperCase() : user.email ? user.email[0].toUpperCase() : 'U'}
                 </div>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  {isMentor ? 'Mentor Lifetime' : 'Active'}
-                </span>
-              </div>
-              <p className="text-[10px] text-indigo-200/90 leading-tight">
-                {isMentor ? 'Teaching privileges & all Pro tools unlocked.' : '12-Month Free Trial active with all Pro tools unlocked.'}
-              </p>
-              <button
-                onClick={() => setActiveNavTab('subscription')}
-                className="w-full bg-white/15 hover:bg-white/25 text-white font-bold text-[10px] py-1 px-2 rounded-xl transition-colors cursor-pointer text-center"
-              >
-                View Pro Perks
-              </button>
-            </div>
-          ) : (
-            <div className="pro-card-gradient rounded-2xl p-3.5 text-white shadow-lg shadow-indigo-500/20 space-y-2.5">
-              <div className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Diamond className="w-3.5 h-3.5 text-white" />
-              </div>
-
-              <div>
-                <h5 className="font-bold text-xs tracking-tight">CodeBuddy Pro</h5>
-                <p className="text-[10px] text-indigo-100/90 leading-snug mt-0.5">
-                  Claim 12 Months 100% Free as Early Adopter Reward!
-                </p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
+                    {profile?.name || user.email?.split('@')[0] || 'User'}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${isAdmin ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                    <p className="text-xs text-slate-500 capitalize">
+                      {isAdmin ? 'Teacher (Admin)' : 'Student'}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <button
-                onClick={handleProUpgrade}
-                className="w-full bg-white text-[#4F46E5] hover:bg-slate-50 font-bold text-[11px] py-1.5 px-2.5 rounded-xl flex items-center justify-center gap-1 shadow-xs transition-transform active:scale-[0.98] cursor-pointer"
+                onClick={() => setShowRoleMenu(!showRoleMenu)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                title="Account Options"
               >
-                <span>Claim 12 Mo Free</span>
-                <ArrowRight className="w-3 h-3" />
+                <MoreVertical className="w-4 h-4" />
               </button>
             </div>
-          )
-        ) : (
-          <button
-            onClick={handleProUpgrade}
-            title={isUserPro ? "CodeBuddy Pro Active" : "Claim 12-Month Pro Free Trial"}
-            className={cn(
-              "w-full p-2.5 rounded-xl flex items-center justify-center transition-colors cursor-pointer",
-              isUserPro ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-indigo-600 text-white hover:bg-indigo-700"
+
+            {/* Quick Role & Account Menu */}
+            {showRoleMenu && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 z-50 animate-in fade-in slide-in-from-bottom-2">
+                <div className="px-3 py-2 border-b border-slate-100 mb-1">
+                  <p className="text-xs font-semibold text-slate-900">Signed in as</p>
+                  <p className="text-xs text-slate-500 truncate">{user.email || profile?.email}</p>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      isAdmin ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {isAdmin ? 'Admin • Instructor' : 'Student'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5">
+                  {onOpenAuth && (
+                    <button
+                      onClick={() => {
+                        onOpenAuth();
+                        setShowRoleMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50/50 hover:bg-blue-50 rounded-lg transition-colors mb-1 cursor-pointer"
+                    >
+                      <User className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Manage Profile</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      signOut();
+                      setShowRoleMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </div>
             )}
-          >
-            <Diamond className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-
-  return (
-    <>
-      {/* Desktop Sidebar */}
-      <motion.aside
-        initial={false}
-        animate={{ width: isSidebarCollapsed ? 76 : 256 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 260 }}
-        className="hidden lg:flex bg-[#F8FAFD] dark:bg-[#0D1021] border-r border-slate-200/70 dark:border-slate-800/80 min-h-screen flex-col shrink-0 sticky top-0 h-screen z-30 transition-colors duration-150"
-      >
-        {sidebarContent}
-      </motion.aside>
-
-      {/* Mobile Drawer Overlay */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden flex">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs"
-            />
-            <motion.aside
-              initial={{ x: -280 }}
-              animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 260 }}
-              className="relative w-64 bg-[#F8FAFD] dark:bg-[#0D1021] border-r border-slate-200/80 dark:border-slate-800/80 h-full shadow-2xl z-10"
+          </div>
+        ) : (
+          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-800">Not Logged In</p>
+                <p className="text-[10px] text-slate-400">Join to ask doubts & submit</p>
+              </div>
+            </div>
+            <button
+              onClick={onOpenAuth}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
             >
-              {sidebarContent}
-            </motion.aside>
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In / Sign Up</span>
+            </button>
           </div>
         )}
-      </AnimatePresence>
-    </>
+      </div>
+    </aside>
   );
 };

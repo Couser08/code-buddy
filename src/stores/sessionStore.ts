@@ -1,359 +1,179 @@
 import { create } from 'zustand';
-import { RoomSession, SupportedLanguage, UserProfile, SessionMetrics } from '../types/session.types';
-import { generatePin, generateRoomCode } from '../lib/utils';
-import { sessionService } from '../services/sessionService';
-import { isMentorEmail } from './authStore';
-import { useCodeStore } from './codeStore';
+import { ClassSession, Doubt, Task, Submission } from '../types/database';
+import { INITIAL_C_CODE } from '../lib/constants';
+import { EnhancedExecutionResult } from '../lib/judge0';
 
 interface SessionState {
-  currentSession: RoomSession | null;
-  activeSessionCardData: RoomSession | null;
-  activeSessionsList: RoomSession[];
-  metrics: SessionMetrics;
-  currentUser: UserProfile;
-  userRoleInSession: 'mentor' | 'student';
-  isFollowingMentor: boolean;
-  isSandboxMode: boolean;
-  mentorCursorPos: { line: number; col: number };
-  connectedStudents: UserProfile[];
+  currentSession: ClassSession | null;
+  liveCode: string;
+  cursorPosition: { lineNumber: number; column: number } | null;
+  onlineCount: number;
+  isTeacherLive: boolean;
+  doubts: Doubt[];
+  tasks: Task[];
+  submissions: Submission[];
+  activeTask: Task | null;
+  teacherExecution: EnhancedExecutionResult | null;
+  teacherStdin: string;
+  isTeacherRunning: boolean;
 
-  createSession: (title: string, language: SupportedLanguage, mentorUser?: UserProfile) => RoomSession;
-  joinSession: (
-    roomCode: string,
-    pin: string,
-    user?: UserProfile
-  ) => Promise<{ success: boolean; error?: string; role?: 'mentor' | 'student' }>;
-  selectSession: (session: RoomSession) => void;
-  leaveSession: () => void;
-  endSession: () => void;
-  updateLanguage: (language: SupportedLanguage) => void;
-  setCurrentUser: (user: Partial<UserProfile>) => void;
-  toggleSandboxMode: () => void;
-  setFollowingMentor: (val: boolean) => void;
-  setMentorCursor: (pos: { line: number; col: number }) => void;
-  loadSessions: () => Promise<void>;
-  setConnectedStudents: (students: UserProfile[]) => void;
-  addConnectedStudent: (student: UserProfile) => void;
+  setCurrentSession: (session: ClassSession | null) => void;
+  setLiveCode: (code: string) => void;
+  setCursorPosition: (pos: { lineNumber: number; column: number } | null) => void;
+  setOnlineCount: (count: number) => void;
+  setIsTeacherLive: (isLive: boolean) => void;
+  setDoubts: (doubts: Doubt[]) => void;
+  addDoubt: (doubt: Doubt) => void;
+  resolveDoubt: (doubtId: string, reply?: string) => void;
+  setTasks: (tasks: Task[]) => void;
+  addTask: (task: Task) => void;
+  setActiveTask: (task: Task | null) => void;
+  setSubmissions: (submissions: Submission[]) => void;
+  addSubmission: (submission: Submission) => void;
+  updateSubmission: (submissionId: string, feedback: string, score: number) => void;
+  setTeacherExecution: (output: EnhancedExecutionResult | null, stdin: string) => void;
+  setIsTeacherRunning: (isRunning: boolean) => void;
 }
 
-// Default guest user is strictly a student learner, NOT mentor!
-const defaultGuestUser: UserProfile = {
-  id: 'usr_guest_learner',
-  name: 'Student Learner',
-  email: 'learner@codebuddy.app',
-  role: 'student',
-  isOnline: true,
-  statusText: 'Student Learner',
-  avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-};
+export const useSessionStore = create<SessionState>((set) => ({
+  currentSession: {
+    id: '00000000-0000-0000-0000-000000000001',
+    title: 'Introduction to C Programming: Basics, Syntax and Your First Program',
+    description: 'Master variables, memory concepts, GCC compilation flags, and write your first Hello World in C.',
+    status: 'live',
+    teacher_id: '00000000-0000-0000-0000-000000000000',
+    started_at: new Date(Date.now() - 36 * 60 * 1000).toISOString(), // started 36 mins ago
+    created_at: new Date().toISOString(),
+  },
+  liveCode: INITIAL_C_CODE,
+  cursorPosition: { lineNumber: 4, column: 12 },
+  onlineCount: 87,
+  isTeacherLive: true,
+  doubts: [
+    {
+      id: 'd-1',
+      session_id: '00000000-0000-0000-0000-000000000001',
+      student_id: 's-1',
+      student_name: 'Sarah Chen',
+      student_avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
+      message: 'Why do we return 0 from main()? What happens if we return 1?',
+      status: 'open',
+      created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'd-2',
+      session_id: '00000000-0000-0000-0000-000000000001',
+      student_id: 's-2',
+      student_name: 'Alex Rivera',
+      student_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+      message: 'Is #include <stdio.h> a function call or a preprocessor directive?',
+      status: 'resolved',
+      admin_reply: 'It is a preprocessor directive! The compiler copies stdio.h prototypes before actual compilation begins.',
+      created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'd-3',
+      session_id: '00000000-0000-0000-0000-000000000001',
+      student_id: 's-3',
+      student_name: 'Elena Rostova',
+      student_avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80',
+      message: 'Can we use single quotes for string literals in printf?',
+      status: 'open',
+      created_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    }
+  ],
+  tasks: [
+    {
+      id: 'task-1',
+      session_id: '00000000-0000-0000-0000-000000000001',
+      title: 'Print a Pattern',
+      description: 'Write a C program that prints a 5x5 asterisk right-angled triangle pattern using nested for loops.',
+      initial_code: `#include <stdio.h>
 
-const getInitialUser = (): UserProfile => {
-  if (typeof window === 'undefined') return defaultGuestUser;
-  try {
-    const raw = localStorage.getItem('codebuddy_auth_user');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed?.email) {
-        if (isMentorEmail(parsed.email) || parsed.role === 'mentor') {
-          parsed.isPro = true;
-          parsed.proPlan = 'Mentor Pro Lifetime';
+int main() {
+    // Write your nested loop pattern code here
+    
+    return 0;
+}`,
+      language_id: 50,
+      created_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 'task-2',
+      session_id: '00000000-0000-0000-0000-000000000001',
+      title: 'Simple Calculator with Switch Case',
+      description: 'Accept two integers and an operator (+, -, *, /) and output the evaluated result. Handle division by zero.',
+      initial_code: `#include <stdio.h>
+
+int main() {
+    char op;
+    double a, b;
+    // Implement calculator logic
+    return 0;
+}`,
+      language_id: 50,
+      created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    }
+  ],
+  submissions: [
+    {
+      id: 'sub-1',
+      task_id: 'task-1',
+      student_id: 's-1',
+      student_name: 'Sarah Chen',
+      code: `#include <stdio.h>
+
+int main() {
+    int i, j;
+    for (i = 1; i <= 5; ++i) {
+        for (j = 1; j <= i; ++j) {
+            printf("* ");
         }
-        return parsed;
-      }
+        printf("\\n");
     }
-  } catch {}
-  return defaultGuestUser;
-};
-
-const initialUser = getInitialUser();
-const initialIsMentor = isMentorEmail(initialUser.email);
-
-const getSavedSessions = (): RoomSession[] => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem('codebuddy_active_sessions');
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [];
-};
-
-const getSavedCurrentSession = (): RoomSession | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem('codebuddy_current_session');
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return null;
-};
-
-const initialCurrentSession = getSavedCurrentSession();
-const initialSavedList = getSavedSessions();
-const sessionMentorMatches = initialCurrentSession && (
-  initialCurrentSession.mentor?.id === initialUser.id || 
-  isMentorEmail(initialUser.email) || 
-  initialCurrentSession.mentor?.email === initialUser.email
-);
-
-export const useSessionStore = create<SessionState>((set, get) => ({
-  currentSession: initialCurrentSession,
-  activeSessionCardData: initialCurrentSession || (initialSavedList[0] || null),
-  activeSessionsList: initialSavedList,
-  currentUser: initialUser,
-  userRoleInSession: (sessionMentorMatches || initialIsMentor) ? 'mentor' : 'student',
-  isFollowingMentor: !(sessionMentorMatches || initialIsMentor),
-  isSandboxMode: false,
-  mentorCursorPos: { line: 1, col: 1 },
-  connectedStudents: [],
-  metrics: {
-    sessionsCompleted: 0,
-    teachingTimeHours: 0,
-    teachingTimeMinutes: 0,
-    questionsAnswered: 0,
-    happyLearners: 0,
-  },
-
-  loadSessions: async () => {
-    const saved = getSavedSessions();
-    set({ activeSessionsList: saved });
-  },
-
-  createSession: (title: string, language: SupportedLanguage, mentorUser?: UserProfile) => {
-    const code = generateRoomCode();
-    const pin = generatePin();
-    const mentor = mentorUser || get().currentUser;
-    const shareableUrl = `${window.location.origin}/join/${code}?pin=${pin}`;
-
-    const sessionUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : 'a0000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
-
-    const nowTime = Date.now();
-    const newSession: RoomSession = {
-      id: sessionUuid,
-      code,
-      pin,
-      title: title || `${language.toUpperCase()} Live Classroom`,
-      language,
-      mentor,
-      activeLearners: [],
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      startedAt: nowTime,
-      isLive: true,
-      shareableUrl,
-    };
-
-    const updatedList = [newSession, ...get().activeSessionsList.filter((s) => s.code !== code)];
-    try {
-      localStorage.setItem('codebuddy_active_sessions', JSON.stringify(updatedList));
-      localStorage.setItem(`cb_session_${code}`, JSON.stringify(newSession));
-      localStorage.setItem('codebuddy_current_session', JSON.stringify(newSession));
-    } catch {}
-
-    // Immediately insert into Supabase table so incognito & external users can join!
-    sessionService.createSession({
-      id: sessionUuid,
-      code,
-      pin,
-      title: newSession.title,
-      language,
-      mentorId: mentor.id,
-      mentorName: mentor.name,
-      startedAt: nowTime,
-    });
-
-    // Switch workspace editor files to the selected language template!
-    useCodeStore.getState().setLanguage(language);
-
-    set({
-      currentSession: newSession,
-      activeSessionCardData: newSession,
-      activeSessionsList: updatedList,
-      userRoleInSession: 'mentor',
-      isFollowingMentor: false,
-      isSandboxMode: false,
-    });
-
-    return newSession;
-  },
-
-  joinSession: async (roomCode: string, pin: string, user?: UserProfile) => {
-    const activeUser = user || get().currentUser;
-    const res = await sessionService.joinSession(roomCode, pin, activeUser);
-
-    if (!res.success || !res.session) {
-      return { success: false, error: res.error || 'Failed to join session.' };
-    }
-
-    const sessionData = res.session;
-    const joinedSession: RoomSession = {
-      id: sessionData.id,
-      code: sessionData.code,
-      pin: sessionData.pin,
-      title: sessionData.title,
-      language: sessionData.language,
-      mentor: {
-        id: sessionData.mentorId || 'mentor_01',
-        name: sessionData.mentorName || 'Rahul Sharma',
-        role: 'mentor',
-        isOnline: true,
-        statusText: 'Senior Peer Mentor',
+    return 0;
+}`,
+      judge0_output: {
+        stdout: "* \n* * \n* * * \n* * * * \n* * * * * \n",
+        stderr: null,
+        compile_output: null,
+        time: "0.002",
+        memory: 1420,
+        status: { id: 3, description: "Accepted" }
       },
-      activeLearners: [activeUser],
-      createdAt: 'Active Now',
-      startedAt: sessionData.startedAt || Date.now(),
-      isLive: true,
-      shareableUrl: `${window.location.origin}/join/${sessionData.code}?pin=${sessionData.pin}`,
-      description: sessionData.description,
-    };
-
-    const updatedList = [joinedSession, ...get().activeSessionsList.filter((s) => s.code !== sessionData.code)];
-    try {
-      localStorage.setItem('codebuddy_active_sessions', JSON.stringify(updatedList));
-      localStorage.setItem(`cb_session_${sessionData.code}`, JSON.stringify(joinedSession));
-      localStorage.setItem('codebuddy_current_session', JSON.stringify(joinedSession));
-    } catch {}
-
-    // Switch workspace code editor files to match joined classroom language!
-    useCodeStore.getState().setLanguage(sessionData.language);
-
-    // Strictly enforce student role unless user's email matches mentor email
-    const finalRole = isMentorEmail(activeUser.email) ? 'mentor' : 'student';
-
-    set({
-      currentSession: joinedSession,
-      activeSessionCardData: joinedSession,
-      activeSessionsList: updatedList,
-      userRoleInSession: finalRole,
-      isFollowingMentor: finalRole === 'student',
-      isSandboxMode: false,
-    });
-
-    return { success: true, role: finalRole };
-  },
-
-  selectSession: (session: RoomSession) => {
-    const isMentor = isMentorEmail(get().currentUser.email) || session.mentor?.id === get().currentUser.id;
-    useCodeStore.getState().setLanguage(session.language);
-    try {
-      localStorage.setItem('codebuddy_current_session', JSON.stringify(session));
-    } catch {}
-    set({
-      currentSession: session,
-      activeSessionCardData: session,
-      userRoleInSession: isMentor ? 'mentor' : 'student',
-      isFollowingMentor: !isMentor,
-      isSandboxMode: false,
-    });
-  },
-
-  leaveSession: () => {
-    try {
-      localStorage.removeItem('codebuddy_current_session');
-    } catch {}
-    set({
-      currentSession: null,
-      userRoleInSession: 'student',
-      isFollowingMentor: true,
-      isSandboxMode: false,
-    });
-  },
-
-  endSession: () => {
-    const current = get().currentSession;
-    try {
-      localStorage.removeItem('codebuddy_current_session');
-    } catch {}
-    if (current) {
-      sessionService.broadcastMessage(current.code, {
-        id: `msg_end_${Date.now()}`,
-        sessionId: current.id,
-        senderName: 'System',
-        senderRole: 'mentor',
-        content: 'This live session has been ended by the mentor.',
-        createdAt: 'Now',
-      });
-
-      const updatedList = get().activeSessionsList.filter((s) => s.code !== current.code);
-      try {
-        localStorage.setItem('codebuddy_active_sessions', JSON.stringify(updatedList));
-        localStorage.removeItem(`cb_session_${current.code}`);
-      } catch {}
-
-      set((state) => ({
-        currentSession: null,
-        activeSessionCardData: null,
-        activeSessionsList: updatedList,
-        metrics: {
-          ...state.metrics,
-          sessionsCompleted: state.metrics.sessionsCompleted + 1,
-        },
-      }));
-    } else {
-      set({
-        currentSession: null,
-        activeSessionCardData: null,
-      });
+      status: 'reviewed',
+      teacher_feedback: 'Clean indentation and correct loop boundary conditions! Excellent job.',
+      score: 100,
+      submitted_at: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
     }
-  },
+  ],
+  activeTask: null,
+  teacherExecution: null,
+  teacherStdin: '',
+  isTeacherRunning: false,
 
-  updateLanguage: (language: SupportedLanguage) => {
-    const current = get().currentSession;
-    if (current) {
-      useCodeStore.getState().setLanguage(language);
-      const updated = { ...current, language };
-      set({
-        currentSession: updated,
-        activeSessionCardData: updated,
-      });
-    }
-  },
-
-  setCurrentUser: (user: Partial<UserProfile>) => {
-    set((state) => {
-      const updatedUser = { ...state.currentUser, ...user };
-      const isMentor = isMentorEmail(updatedUser.email) || updatedUser.role === 'mentor';
-      if (isMentor) {
-        updatedUser.isPro = true;
-        updatedUser.proPlan = 'Mentor Pro Lifetime';
-      }
-      return {
-        currentUser: updatedUser,
-        userRoleInSession: isMentor ? 'mentor' : 'student',
-        isFollowingMentor: !isMentor,
-      };
-    });
-  },
-
-  toggleSandboxMode: () => {
-    set((state) => ({ isSandboxMode: !state.isSandboxMode }));
-  },
-
-  setFollowingMentor: (val: boolean) => {
-    set({ isFollowingMentor: val });
-  },
-
-  setMentorCursor: (pos: { line: number; col: number }) => {
-    set({ mentorCursorPos: pos });
-  },
-
-  setConnectedStudents: (students: UserProfile[]) => {
-    set({ connectedStudents: students });
-  },
-
-  addConnectedStudent: (student: UserProfile) => {
-    set((state) => {
-      if (state.connectedStudents.some((s) => s.id === student.id || s.email === student.email)) {
-        return state;
-      }
-      return { connectedStudents: [...state.connectedStudents, student] };
-    });
-  },
+  setCurrentSession: (session) => set({ currentSession: session }),
+  setLiveCode: (code) => set({ liveCode: code }),
+  setCursorPosition: (pos) => set({ cursorPosition: pos }),
+  setOnlineCount: (count) => set({ onlineCount: count }),
+  setIsTeacherLive: (isLive) => set({ isTeacherLive: isLive }),
+  setDoubts: (doubts) => set({ doubts }),
+  addDoubt: (doubt) => set((state) => ({ doubts: [doubt, ...state.doubts] })),
+  resolveDoubt: (doubtId, reply) => set((state) => ({
+    doubts: state.doubts.map((d) =>
+      d.id === doubtId ? { ...d, status: 'resolved', admin_reply: reply || d.admin_reply } : d
+    )
+  })),
+  setTasks: (tasks) => set({ tasks }),
+  addTask: (task) => set((state) => ({ tasks: [task, ...state.tasks] })),
+  setActiveTask: (task) => set({ activeTask: task }),
+  setSubmissions: (submissions) => set({ submissions }),
+  addSubmission: (submission) => set((state) => ({ submissions: [submission, ...state.submissions] })),
+  updateSubmission: (submissionId, feedback, score) => set((state) => ({
+    submissions: state.submissions.map((s) =>
+      s.id === submissionId ? { ...s, teacher_feedback: feedback, score, status: 'reviewed' } : s
+    )
+  })),
+  setTeacherExecution: (output, stdin) => set({ teacherExecution: output, teacherStdin: stdin }),
+  setIsTeacherRunning: (isRunning) => set({ isTeacherRunning: isRunning }),
 }));
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('codebuddy_auth_change', (e: any) => {
-    if (e.detail) {
-      useSessionStore.getState().setCurrentUser(e.detail);
-    }
-  });
-}

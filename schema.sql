@@ -1,6 +1,12 @@
 -- ==============================================================================
--- C LIVE CODING CLASSROOM (CodeClass) - POSTGRESQL & ROW LEVEL SECURITY SCHEMA
--- ADMIN EMAIL: tungariyarahul08@gmail.com (STRICT & EXCLUSIVE ADMIN)
+-- C LIVE CODING CLASSROOM (CodeClass) - COMPLETE SUPABASE POSTGRESQL & RLS SCHEMA
+-- STRICT ADMIN: tungariyarahul08@gmail.com
+--
+-- HOW TO RUN:
+-- 1. Open your Supabase Project Dashboard (https://supabase.com/dashboard)
+-- 2. Click "SQL Editor" in the left sidebar
+-- 3. Click "New Query"
+-- 4. Paste this entire file and click "Run" (green button)
 -- ==============================================================================
 
 -- Enable UUID extension
@@ -87,7 +93,7 @@ CREATE TABLE IF NOT EXISTS public.submissions (
 );
 
 -- ==============================================================================
--- INDEXES FOR MAXIMUM QUERY PERFORMANCE
+-- PERFORMANCE INDEXES
 -- ==============================================================================
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON public.class_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_doubts_session_status ON public.doubts(session_id, status, created_at);
@@ -161,11 +167,13 @@ ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
 
 -- 1. Profiles Policies
+DROP POLICY IF EXISTS "Public profiles are readable by authenticated users" ON public.profiles;
 CREATE POLICY "Public profiles are readable by authenticated users"
     ON public.profiles FOR SELECT
     TO authenticated
     USING (true);
 
+DROP POLICY IF EXISTS "Users can update their own profile name & avatar" ON public.profiles;
 CREATE POLICY "Users can update their own profile name & avatar"
     ON public.profiles FOR UPDATE
     TO authenticated
@@ -173,33 +181,39 @@ CREATE POLICY "Users can update their own profile name & avatar"
     WITH CHECK (auth.uid() = id AND (role = (SELECT role FROM public.profiles WHERE id = auth.uid())));
 
 -- 2. Class Sessions Policies
+DROP POLICY IF EXISTS "Sessions are viewable by all authenticated users" ON public.class_sessions;
 CREATE POLICY "Sessions are viewable by all authenticated users"
     ON public.class_sessions FOR SELECT
     TO authenticated
     USING (true);
 
+DROP POLICY IF EXISTS "Only admin can create sessions" ON public.class_sessions;
 CREATE POLICY "Only admin can create sessions"
     ON public.class_sessions FOR INSERT
     TO authenticated
     WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "Only admin can update sessions" ON public.class_sessions;
 CREATE POLICY "Only admin can update sessions"
     ON public.class_sessions FOR UPDATE
     TO authenticated
     USING (public.is_admin())
     WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "Only admin can delete sessions" ON public.class_sessions;
 CREATE POLICY "Only admin can delete sessions"
     ON public.class_sessions FOR DELETE
     TO authenticated
     USING (public.is_admin());
 
 -- 3. Live Code State Policies
+DROP POLICY IF EXISTS "Live code state is readable by all authenticated users" ON public.live_code_state;
 CREATE POLICY "Live code state is readable by all authenticated users"
     ON public.live_code_state FOR SELECT
     TO authenticated
     USING (true);
 
+DROP POLICY IF EXISTS "Only admin can insert or update live code state" ON public.live_code_state;
 CREATE POLICY "Only admin can insert or update live code state"
     ON public.live_code_state FOR ALL
     TO authenticated
@@ -207,16 +221,19 @@ CREATE POLICY "Only admin can insert or update live code state"
     WITH CHECK (public.is_admin());
 
 -- 4. Doubts Policies
+DROP POLICY IF EXISTS "Doubts are viewable by all authenticated session users" ON public.doubts;
 CREATE POLICY "Doubts are viewable by all authenticated session users"
     ON public.doubts FOR SELECT
     TO authenticated
     USING (true);
 
+DROP POLICY IF EXISTS "Students can insert their own doubts" ON public.doubts;
 CREATE POLICY "Students can insert their own doubts"
     ON public.doubts FOR INSERT
     TO authenticated
     WITH CHECK (auth.uid() = student_id);
 
+DROP POLICY IF EXISTS "Admin can update doubts (resolve or reply)" ON public.doubts;
 CREATE POLICY "Admin can update doubts (resolve or reply)"
     ON public.doubts FOR UPDATE
     TO authenticated
@@ -224,11 +241,13 @@ CREATE POLICY "Admin can update doubts (resolve or reply)"
     WITH CHECK (public.is_admin() OR auth.uid() = student_id);
 
 -- 5. Tasks Policies
+DROP POLICY IF EXISTS "Tasks are viewable by all authenticated users" ON public.tasks;
 CREATE POLICY "Tasks are viewable by all authenticated users"
     ON public.tasks FOR SELECT
     TO authenticated
     USING (true);
 
+DROP POLICY IF EXISTS "Only admin can manage tasks" ON public.tasks;
 CREATE POLICY "Only admin can manage tasks"
     ON public.tasks FOR ALL
     TO authenticated
@@ -236,16 +255,19 @@ CREATE POLICY "Only admin can manage tasks"
     WITH CHECK (public.is_admin());
 
 -- 6. Submissions Policies
+DROP POLICY IF EXISTS "Students can view their own submissions; admin views all" ON public.submissions;
 CREATE POLICY "Students can view their own submissions; admin views all"
     ON public.submissions FOR SELECT
     TO authenticated
     USING (auth.uid() = student_id OR public.is_admin());
 
+DROP POLICY IF EXISTS "Students can insert their own submissions" ON public.submissions;
 CREATE POLICY "Students can insert their own submissions"
     ON public.submissions FOR INSERT
     TO authenticated
     WITH CHECK (auth.uid() = student_id);
 
+DROP POLICY IF EXISTS "Only admin can grade and review submissions" ON public.submissions;
 CREATE POLICY "Only admin can grade and review submissions"
     ON public.submissions FOR UPDATE
     TO authenticated

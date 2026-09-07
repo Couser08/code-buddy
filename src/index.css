@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    border-color: rgba(226, 232, 240, 0.8);
+  }
+  
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Smooth custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(203, 213, 225, 0.7);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.9);
+}
+
+/* Driver.js Tour Spotlight Custom Theme */
+.driver-popover {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-radius: 24px !important;
+  padding: 20px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  max-width: 360px !important;
+}
+
+.driver-popover-title {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  margin-bottom: 8px !important;
+}
+
+.driver-popover-description {
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+  color: #475569 !important;
+}
+
+.driver-popover-footer {
+  margin-top: 14px !important;
+}
+
+.driver-popover-next-btn, .driver-popover-prev-btn, .driver-popover-close-btn {
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 6px 14px !important;
+  transition: all 0.2s !important;
+}
+
+.driver-popover-next-btn {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.driver-popover-next-btn:hover {
+  background-color: #1e293b !important;
+}
+
+.driver-popover-prev-btn {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border: none !important;
+}
+
+.driver-popover-progress-text {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #3b82f6 !important;
+}
