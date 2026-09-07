@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { VISUALIZER_TOPICS, VisualizerTopic } from '../lib/visualizer/predefinedExamples';
-import { traceCCode, ExecutionStep } from '../lib/visualizer/cVisualTracer';
+import { ExecutionStep } from '../lib/visualizer/cVisualTracer';
+import { getCachedTopicTrace, getTraceForCode } from '../lib/visualizer/precomputedTraces';
 import { MemoryCanvas } from '../components/visualizer/MemoryCanvas';
 import { ConceptExplainDrawer } from '../components/visualizer/ConceptExplainDrawer';
 import { PlaybackControls } from '../components/visualizer/PlaybackControls';
@@ -69,10 +70,29 @@ export const VisualizerPage: React.FC = () => {
     return VISUALIZER_TOPICS.find((t) => t.id === selectedTopicId) || VISUALIZER_TOPICS[0];
   }, [selectedTopicId]);
 
-  // Compute execution steps whenever code or topic changes
-  const steps: ExecutionStep[] = useMemo(() => {
-    return traceCCode(code, selectedTopicId);
-  }, [code, selectedTopicId]);
+  // Precomputed 0ms cache for active topic with debounced calculation for custom code edits
+  const [steps, setSteps] = useState<ExecutionStep[]>(() => {
+    return getCachedTopicTrace(selectedTopicId) || getTraceForCode(code, selectedTopicId);
+  });
+
+  useEffect(() => {
+    // If exact match with topic default, return instantly from cache (0ms)
+    if (code === activeTopic.code) {
+      const cached = getCachedTopicTrace(selectedTopicId);
+      if (cached) {
+        setSteps(cached);
+        return;
+      }
+    }
+
+    // Debounce custom user edits (200ms) to keep editor typing 100% fluid
+    const timer = setTimeout(() => {
+      const calculated = getTraceForCode(code, selectedTopicId);
+      setSteps(calculated);
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [code, selectedTopicId, activeTopic.code]);
 
   const currentStep = steps[currentStepIndex] || steps[0] || null;
 
@@ -394,7 +414,7 @@ export const VisualizerPage: React.FC = () => {
           {/* Right Body Canvas */}
           <div className="flex-1 min-h-0 overflow-y-auto p-3.5 bg-slate-50/30">
             {activeTab === 'visualization' ? (
-              <MemoryCanvas currentStep={currentStep} />
+              <MemoryCanvas currentStep={currentStep} topicId={selectedTopicId} />
             ) : (
               /* Output Tab */
               <div className="h-full flex flex-col bg-slate-900 text-slate-100 rounded-xl p-4 font-mono text-xs overflow-hidden">
