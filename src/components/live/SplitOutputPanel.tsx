@@ -13,8 +13,13 @@ import {
   X,
   Radio,
   User,
+  BrainCircuit,
 } from 'lucide-react';
 import { EnhancedExecutionResult } from '../../lib/judge0';
+import { traceCCode, ExecutionStep } from '../../lib/visualizer/cVisualTracer';
+import { MemoryCanvas } from '../visualizer/MemoryCanvas';
+import { HinglishMentorCard } from '../visualizer/HinglishMentorCard';
+import { PlaybackControls } from '../visualizer/PlaybackControls';
 
 interface SplitOutputPanelProps {
   isRunning: boolean;
@@ -43,10 +48,18 @@ export const SplitOutputPanel: React.FC<SplitOutputPanelProps> = ({
   teacherStdin = '',
   isTeacherRunning = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<'terminal' | 'stdin'>('terminal');
+  const [activeTab, setActiveTab] = useState<'terminal' | 'stdin' | 'memory'>('terminal');
   const [consoleSource, setConsoleSource] = useState<'student' | 'teacher'>('student');
   const [terminalInput, setTerminalInput] = useState<string>(stdin);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
+
+  const [visualStepIndex, setVisualStepIndex] = useState<number>(0);
+  const visualSteps: ExecutionStep[] = useMemo(() => {
+    if (!code) return [];
+    return traceCCode(code);
+  }, [code]);
+
+  const currentVisualStep = visualSteps[visualStepIndex] || visualSteps[0] || null;
 
   // Sync terminal input whenever stdin changes from outside
   useEffect(() => {
@@ -123,6 +136,18 @@ export const SplitOutputPanel: React.FC<SplitOutputPanelProps> = ({
               <CornerDownLeft className="w-3.5 h-3.5 text-indigo-600" />
               <span>Input Buffer (stdin)</span>
               {stdin.trim() && <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('memory')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'memory'
+                  ? 'bg-white text-purple-700 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BrainCircuit className="w-3.5 h-3.5 text-purple-600" />
+              <span>Visual Memory</span>
             </button>
           </div>
 
@@ -219,8 +244,24 @@ export const SplitOutputPanel: React.FC<SplitOutputPanelProps> = ({
         </div>
 
         {/* Content Viewport */}
-        <div className="flex-1 p-5 overflow-y-auto space-y-3 font-mono text-xs">
-          {activeTab === 'stdin' ? (
+        <div className="flex-1 p-4 overflow-y-auto space-y-3 font-mono text-xs">
+          {activeTab === 'memory' ? (
+            <div className="h-full flex flex-col space-y-4">
+              <HinglishMentorCard currentStep={currentVisualStep} />
+              <div className="flex-1 min-h-[220px]">
+                <MemoryCanvas currentStep={currentVisualStep} />
+              </div>
+              <PlaybackControls
+                currentStepIndex={visualStepIndex}
+                totalSteps={visualSteps.length}
+                currentLineNumber={currentVisualStep?.lineNumber || 1}
+                onNext={() => setVisualStepIndex((p) => Math.min(p + 1, visualSteps.length - 1))}
+                onPrev={() => setVisualStepIndex((p) => Math.max(p - 1, 0))}
+                onReset={() => setVisualStepIndex(0)}
+                onSeek={(idx) => setVisualStepIndex(idx)}
+              />
+            </div>
+          ) : activeTab === 'stdin' ? (
             <div className="h-full flex flex-col space-y-2">
               <div className="flex items-center justify-between text-[11px] text-slate-400">
                 <span className="font-semibold text-slate-300">Standard Input Buffer (stdin)</span>
@@ -342,81 +383,83 @@ export const SplitOutputPanel: React.FC<SplitOutputPanelProps> = ({
         </div>
 
         {/* Live Interactive Terminal Input Bar (Seamless Terminal Experience) */}
-        <div className="p-3 bg-[#060A12] border-t border-slate-800/80 flex flex-col gap-2 shrink-0">
-          {hasScanf && (
-            <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px]">
-              <div className="flex items-center gap-1.5 text-amber-400 font-sans">
-                <Sparkles className="w-3.5 h-3.5 animate-pulse text-amber-400" />
-                <span className="font-semibold text-slate-200">Interactive Input Mode:</span>
-                <span className="text-slate-400">Program waiting for scanf()</span>
+        {activeTab !== 'memory' && (
+          <div className="p-3 bg-[#060A12] border-t border-slate-800/80 flex flex-col gap-2 shrink-0">
+            {hasScanf && (
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px]">
+                <div className="flex items-center gap-1.5 text-amber-400 font-sans">
+                  <Sparkles className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                  <span className="font-semibold text-slate-200">Interactive Input Mode:</span>
+                  <span className="text-slate-400">Program waiting for scanf()</span>
+                </div>
+
+                {/* Quick Fill Test Values */}
+                <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                  <span className="text-slate-500 font-sans">Quick fill:</span>
+                  {['25 40', '10 50', '5 15'].map((val) => (
+                    <button
+                      key={val}
+                      onClick={() => handleQuickFill(val)}
+                      className="px-2 py-0.5 rounded-md bg-slate-800/90 hover:bg-blue-600 hover:text-white text-slate-300 transition-colors cursor-pointer border border-slate-700/80"
+                      title={`Test with inputs: ${val}`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
               </div>
+            )}
 
-              {/* Quick Fill Test Values */}
-              <div className="flex items-center gap-1.5 font-mono text-[10px]">
-                <span className="text-slate-500 font-sans">Quick fill:</span>
-                {['25 40', '10 50', '5 15'].map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => handleQuickFill(val)}
-                    className="px-2 py-0.5 rounded-md bg-slate-800/90 hover:bg-blue-600 hover:text-white text-slate-300 transition-colors cursor-pointer border border-slate-700/80"
-                    title={`Test with inputs: ${val}`}
-                  >
-                    {val}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendInput();
-            }}
-            className="flex items-center gap-2"
-          >
-            <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-[#0C1220] rounded-xl border border-slate-700/80 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/30 transition-all font-mono text-xs">
-              <span className="text-emerald-400 font-bold select-none text-xs">&gt;</span>
-              <input
-                type="text"
-                value={terminalInput}
-                onChange={(e) => {
-                  setTerminalInput(e.target.value);
-                  onStdinChange(e.target.value);
-                }}
-                placeholder={
-                  hasScanf
-                    ? 'Enter stdin values for scanf() (e.g. 25 40) and press Enter ↵'
-                    : 'Terminal interactive stdin prompt... (Press Enter to Run)'
-                }
-                className="flex-1 bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none font-mono text-xs"
-              />
-              {terminalInput && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTerminalInput('');
-                    onStdinChange('');
-                  }}
-                  className="text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
-                  title="Clear input"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={currentIsRunning}
-              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold font-sans flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0 active:scale-98"
-              title="Send input into stdin and run program (Enter)"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendInput();
+              }}
+              className="flex items-center gap-2"
             >
-              <CornerDownLeft className="w-3.5 h-3.5" />
-              <span>{currentIsRunning ? 'Running...' : 'Send & Run'}</span>
-            </button>
-          </form>
-        </div>
+              <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-[#0C1220] rounded-xl border border-slate-700/80 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/30 transition-all font-mono text-xs">
+                <span className="text-emerald-400 font-bold select-none text-xs">&gt;</span>
+                <input
+                  type="text"
+                  value={terminalInput}
+                  onChange={(e) => {
+                    setTerminalInput(e.target.value);
+                    onStdinChange(e.target.value);
+                  }}
+                  placeholder={
+                    hasScanf
+                      ? 'Enter stdin values for scanf() (e.g. 25 40) and press Enter ↵'
+                      : 'Terminal interactive stdin prompt... (Press Enter to Run)'
+                  }
+                  className="flex-1 bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none font-mono text-xs"
+                />
+                {terminalInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTerminalInput('');
+                      onStdinChange('');
+                    }}
+                    className="text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
+                    title="Clear input"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={currentIsRunning}
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold font-sans flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0 active:scale-98"
+                title="Send input into stdin and run program (Enter)"
+              >
+                <CornerDownLeft className="w-3.5 h-3.5" />
+                <span>{currentIsRunning ? 'Running...' : 'Send & Run'}</span>
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

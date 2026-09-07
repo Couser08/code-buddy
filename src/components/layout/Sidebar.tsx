@@ -13,7 +13,8 @@ import {
   MoreVertical,
   LogOut,
   LogIn,
-  User
+  User,
+  BrainCircuit,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useSessionStore } from '../../stores/sessionStore';
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenQuickDoubt, onOpenAuth }
   const navItems = [
     { name: 'Home', href: '/', icon: Home },
     { name: 'Live Class', href: '/live', icon: Video, badge: 'LIVE', badgeColor: 'bg-red-500 text-white' },
+    { name: 'Visual Memory Lab', href: '/visualizer', icon: BrainCircuit, badge: 'Visual Lab', badgeColor: 'bg-purple-100 text-purple-800 font-bold' },
     { name: 'C Playground', href: '/playground', icon: Code2, badge: 'Free IDE', badgeColor: 'bg-emerald-100 text-emerald-800' },
     { name: 'Tasks', href: '/tasks', icon: FileCode2 },
     { name: 'Submissions', href: '/submissions', icon: CheckSquare },

@@ -16,6 +16,7 @@ const SubmissionsPage = lazy(() => import('./pages/SubmissionsPage').then((m) =>
 const DoubtsPage = lazy(() => import('./pages/DoubtsPage').then((m) => ({ default: m.DoubtsPage })));
 const StudentsPage = lazy(() => import('./pages/StudentsPage').then((m) => ({ default: m.StudentsPage })));
 const ResourcesPage = lazy(() => import('./pages/ResourcesPage').then((m) => ({ default: m.ResourcesPage })));
+const VisualizerPage = lazy(() => import('./pages/VisualizerPage').then((m) => ({ default: m.VisualizerPage })));
 
 const RouteLoader: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[65vh] gap-3 select-none">
@@ -69,6 +70,7 @@ export const App: React.FC = () => {
                 <Route path="/doubts" element={<DoubtsPage />} />
                 <Route path="/students" element={<StudentsPage />} />
                 <Route path="/resources" element={<ResourcesPage />} />
+                <Route path="/visualizer" element={<VisualizerPage />} />
                 {/* Catch-all fallback for undefined routes */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
