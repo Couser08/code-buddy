@@ -21,22 +21,128 @@ export function useRealtimeSession(sessionId: string) {
 
   const { user, profile, isAdmin } = useAuthStore();
   const channelRef = useRef<any>(null);
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
   const debounceTimerRef = useRef<any>(null);
-  const rafUpdateRef = useRef<number | null>(null);
+  const cursorTelemetryTimerRef = useRef<any>(null);
 
-  // Setup Realtime Channel scoped strictly as `class:{sessionId}`
+  // Setup Realtime Synchronization:
+  // 1. HTML5 BroadcastChannel: Ultra-fast local & cross-tab sync (<2ms)
+  // 2. Storage Event Listener: Synchronous reload / tab backup
+  // 3. Supabase Realtime Channel: Multi-user remote broadcasting across networks
   useEffect(() => {
     if (!sessionId) return;
 
-    const channelName = `class:${sessionId}`;
+    // 1. Initialize HTML5 BroadcastChannel for instantaneous cross-tab sync
+    const bcName = `codeclass_session_${sessionId}`;
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        bc = new BroadcastChannel(bcName);
+        broadcastChannelRef.current = bc;
 
-    if (!isSupabaseConfigured) {
-      // Local development simulation of presence
-      setOnlineCount(87);
-      setIsTeacherLive(true);
-      return;
+        bc.onmessage = (event) => {
+          const payload = event.data;
+          if (!payload || !payload.type) return;
+
+          switch (payload.type) {
+            case 'code_broadcast': {
+              setLiveCode(payload.code);
+              if (payload.cursor) {
+                setCursorPosition(payload.cursor);
+              }
+              break;
+            }
+            case 'cursor_telemetry': {
+              setCursorPosition(payload.cursor);
+              break;
+            }
+            case 'doubt_event': {
+              if (payload.action === 'created') {
+                addDoubt(payload.doubt);
+              } else if (payload.action === 'resolved' || payload.action === 'replied') {
+                resolveDoubt(payload.doubt.id, payload.doubt.admin_reply);
+              }
+              break;
+            }
+            case 'task_created': {
+              addTask(payload.task);
+              break;
+            }
+            case 'session_status': {
+              setIsTeacherLive(payload.status === 'live');
+              break;
+            }
+            case 'execution_broadcast': {
+              setTeacherExecution(payload.output, payload.stdin);
+              setIsTeacherRunning(payload.isRunning);
+              break;
+            }
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('BroadcastChannel initialization fallback:', e);
     }
 
+    // 2. Local Storage Event Listener (secondary cross-tab sync fallback)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `codeclass_live_code_${sessionId}` || e.key === 'codeclass_live_code_global') {
+        if (e.newValue && e.newValue !== useSessionStore.getState().liveCode) {
+          setLiveCode(e.newValue);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // 3. Hydrate immediately from localStorage on component mount
+    const fetchInitialSnapshot = async () => {
+      try {
+        const localCode = localStorage.getItem(`codeclass_live_code_${sessionId}`) ||
+                          localStorage.getItem('codeclass_live_code_global');
+        if (localCode && localCode.trim()) {
+          setLiveCode(localCode);
+        }
+      } catch (e) {}
+
+      // Fetch initial live code snapshot from Supabase table for remote late-joiners
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
+      if (!isUUID || !isSupabaseConfigured) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('live_code_state')
+          .select('code')
+          .eq('session_id', sessionId)
+          .maybeSingle();
+
+        if (data?.code && !error) {
+          setLiveCode(data.code);
+          try {
+            localStorage.setItem(`codeclass_live_code_${sessionId}`, data.code);
+            localStorage.setItem('codeclass_live_code_global', data.code);
+          } catch (e) {}
+        }
+      } catch (err) {
+        console.warn('Could not fetch snapshot buffer:', err);
+      }
+    };
+    fetchInitialSnapshot();
+
+    // 4. Remote Supabase Realtime Channel (if configured)
+    if (!isSupabaseConfigured) {
+      setOnlineCount(87);
+      setIsTeacherLive(true);
+
+      return () => {
+        if (bc) {
+          bc.close();
+          broadcastChannelRef.current = null;
+        }
+        window.removeEventListener('storage', handleStorageChange);
+      };
+    }
+
+    const channelName = `class:${sessionId}`;
     const channel = supabase.channel(channelName, {
       config: {
         broadcast: { ack: false, self: false },
@@ -44,20 +150,15 @@ export function useRealtimeSession(sessionId: string) {
       },
     });
 
-    // 1. Listen for Broadcast Events with Message Type Discriminator
+    // Listen for Remote Broadcast Events
     channel.on('broadcast', { event: 'classroom_message' }, ({ payload }: { payload: ClassroomRealtimeMessage }) => {
       switch (payload.type) {
         case 'code_broadcast': {
-          // Game-Dev Netcode Optimization: Batch updates using requestAnimationFrame
-          if (rafUpdateRef.current) {
-            cancelAnimationFrame(rafUpdateRef.current);
+          // Update store directly without requestAnimationFrame delay (to support background tabs)
+          setLiveCode(payload.code);
+          if (payload.cursor) {
+            setCursorPosition(payload.cursor);
           }
-          rafUpdateRef.current = requestAnimationFrame(() => {
-            setLiveCode(payload.code);
-            if (payload.cursor) {
-              setCursorPosition(payload.cursor);
-            }
-          });
           break;
         }
 
@@ -93,20 +194,20 @@ export function useRealtimeSession(sessionId: string) {
       }
     });
 
-    // 2. Presence Tracking (Live students counter & avatar stack)
+    // Presence Tracking
     channel
       .on('presence', { event: 'sync' }, () => {
         const presenceState = channel.presenceState();
         const totalUsers = Object.keys(presenceState).length;
         setOnlineCount(Math.max(totalUsers, 1));
       })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+      .on('presence', { event: 'join' }, () => {
         const presenceState = channel.presenceState();
-        setOnlineCount(Object.keys(presenceState).length);
+        setOnlineCount(Math.max(Object.keys(presenceState).length, 1));
       })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+      .on('presence', { event: 'leave' }, () => {
         const presenceState = channel.presenceState();
-        setOnlineCount(Object.keys(presenceState).length);
+        setOnlineCount(Math.max(Object.keys(presenceState).length, 1));
       });
 
     // Subscribe to channel and track presence
@@ -125,30 +226,13 @@ export function useRealtimeSession(sessionId: string) {
 
     channelRef.current = channel;
 
-    // Fetch initial live code snapshot from live_code_state table for late-joiners
-    const fetchInitialSnapshot = async () => {
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
-      if (!isUUID || !isSupabaseConfigured) return;
-
-      try {
-        const { data, error } = await supabase
-          .from('live_code_state')
-          .select('code')
-          .eq('session_id', sessionId)
-          .single();
-
-        if (data?.code && !error) {
-          setLiveCode(data.code);
-        }
-      } catch (err) {
-        console.warn('Could not fetch snapshot buffer:', err);
-      }
-    };
-    fetchInitialSnapshot();
-
     return () => {
+      if (bc) {
+        bc.close();
+        broadcastChannelRef.current = null;
+      }
+      window.removeEventListener('storage', handleStorageChange);
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      if (rafUpdateRef.current) cancelAnimationFrame(rafUpdateRef.current);
       if (cursorTelemetryTimerRef.current) clearTimeout(cursorTelemetryTimerRef.current);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
@@ -156,14 +240,31 @@ export function useRealtimeSession(sessionId: string) {
     };
   }, [sessionId, user?.id, isAdmin, profile?.name, profile?.avatar_url, user?.email]);
 
-  const cursorTelemetryTimerRef = useRef<any>(null);
-
-  // Teacher Broadcast Code: Debounced 200ms
+  // Teacher Broadcast Code: Instant local & BroadcastChannel + Debounced 150ms network
   const broadcastCode = useCallback((code: string, cursor?: { lineNumber: number; column: number }) => {
     // 1. Immediately update local store
     setLiveCode(code);
 
-    // 2. Debounce high-frequency network broadcasts
+    // 2. Instantly broadcast across local tabs/windows (<2ms)
+    if (broadcastChannelRef.current) {
+      try {
+        broadcastChannelRef.current.postMessage({
+          type: 'code_broadcast',
+          code,
+          language_id: 50,
+          cursor,
+          timestamp: Date.now(),
+        });
+      } catch (e) {}
+    }
+
+    // 3. Immediately persist to localStorage for instant reload / hard refresh persistence
+    try {
+      localStorage.setItem(`codeclass_live_code_${sessionId}`, code);
+      localStorage.setItem('codeclass_live_code_global', code);
+    } catch (e) {}
+
+    // 4. Debounce remote network broadcast (150ms)
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -185,26 +286,40 @@ export function useRealtimeSession(sessionId: string) {
         });
       }
 
-      // Upsert into live_code_state for late-joiners if Supabase is active and sessionId is UUID
+      // Upsert into live_code_state for remote late-joiners
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
       if (isSupabaseConfigured && isUUID) {
-        await supabase
-          .from('live_code_state')
-          .upsert({
-            session_id: sessionId,
-            code,
-            language_id: 50,
-            updated_at: new Date().toISOString(),
-          });
+        try {
+          await supabase
+            .from('live_code_state')
+            .upsert({
+              session_id: sessionId,
+              code,
+              language_id: 50,
+              updated_at: new Date().toISOString(),
+            });
+        } catch (err) {
+          // Graceful fallback if RLS or foreign key is not yet migrated
+        }
       }
-    }, 200); // 200ms debounce
+    }, 150);
   }, [sessionId, setLiveCode]);
 
   // Teacher Broadcast Cursor Telemetry (Throttled to 80ms)
   const broadcastCursor = useCallback((cursor: { lineNumber: number; column: number }) => {
     setCursorPosition(cursor);
-    if (!channelRef.current) return;
 
+    if (broadcastChannelRef.current) {
+      try {
+        broadcastChannelRef.current.postMessage({
+          type: 'cursor_telemetry',
+          cursor,
+          timestamp: Date.now(),
+        });
+      } catch (e) {}
+    }
+
+    if (!channelRef.current) return;
     if (cursorTelemetryTimerRef.current) return;
 
     cursorTelemetryTimerRef.current = setTimeout(() => {
@@ -230,15 +345,23 @@ export function useRealtimeSession(sessionId: string) {
     if (action === 'created') addDoubt(doubt);
     if (action === 'resolved') resolveDoubt(doubt.id, doubt.admin_reply);
 
+    const doubtMsg = {
+      type: 'doubt_event',
+      action,
+      doubt,
+    };
+
+    if (broadcastChannelRef.current) {
+      try {
+        broadcastChannelRef.current.postMessage(doubtMsg);
+      } catch (e) {}
+    }
+
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
         event: 'classroom_message',
-        payload: {
-          type: 'doubt_event',
-          action,
-          doubt,
-        },
+        payload: doubtMsg,
       });
     }
   }, [addDoubt, resolveDoubt]);
@@ -246,14 +369,23 @@ export function useRealtimeSession(sessionId: string) {
   // Broadcast Task Event
   const broadcastTaskCreated = useCallback((task: Task) => {
     addTask(task);
+
+    const taskMsg = {
+      type: 'task_created',
+      task,
+    };
+
+    if (broadcastChannelRef.current) {
+      try {
+        broadcastChannelRef.current.postMessage(taskMsg);
+      } catch (e) {}
+    }
+
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
         event: 'classroom_message',
-        payload: {
-          type: 'task_created',
-          task,
-        },
+        payload: taskMsg,
       });
     }
   }, [addTask]);
@@ -264,16 +396,22 @@ export function useRealtimeSession(sessionId: string) {
       setTeacherExecution(output, stdin);
       setIsTeacherRunning(isRunning);
 
-      if (channelRef.current) {
-        const payload: ExecutionBroadcastPayload = {
-          type: 'execution_broadcast',
-          output,
-          stdin,
-          isRunning,
-          executedBy: user?.user_metadata?.full_name || user?.email || 'Instructor',
-          timestamp: Date.now(),
-        };
+      const payload: ExecutionBroadcastPayload = {
+        type: 'execution_broadcast',
+        output,
+        stdin,
+        isRunning,
+        executedBy: user?.user_metadata?.full_name || user?.email || 'Instructor',
+        timestamp: Date.now(),
+      };
 
+      if (broadcastChannelRef.current) {
+        try {
+          broadcastChannelRef.current.postMessage(payload);
+        } catch (e) {}
+      }
+
+      if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'classroom_message',

@@ -49,3 +49,40 @@ CREATE POLICY "Sessions are viewable by all users"
     ON public.class_sessions FOR SELECT
     TO anon, authenticated
     USING (true);
+
+-- 6. Ensure live_code_state allows public read & synchronized writes
+DROP POLICY IF EXISTS "Live code state is readable by all users" ON public.live_code_state;
+DROP POLICY IF EXISTS "Live code state is readable by all authenticated users" ON public.live_code_state;
+CREATE POLICY "Live code state is readable by all users"
+    ON public.live_code_state FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
+DROP POLICY IF EXISTS "Only admin can insert or update live code state" ON public.live_code_state;
+DROP POLICY IF EXISTS "Allow upserting live code state for classroom sessions" ON public.live_code_state;
+CREATE POLICY "Allow upserting live code state for classroom sessions"
+    ON public.live_code_state FOR ALL
+    TO anon, authenticated
+    USING (true)
+    WITH CHECK (true);
+
+-- 7. Seed default instructor profile and live session so foreign key constraints succeed
+INSERT INTO public.profiles (id, email, role, name, created_at)
+VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    'tungariyarahul08@gmail.com',
+    'admin',
+    'Rahul Tungariya (Instructor)',
+    NOW()
+) ON CONFLICT (id) DO UPDATE SET role = 'admin';
+
+INSERT INTO public.class_sessions (id, title, description, status, teacher_id, started_at, created_at)
+VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    'Introduction to C Programming: Basics, Syntax and Your First Program',
+    'Master variables, memory concepts, GCC compilation flags, and write your first Hello World in C.',
+    'live',
+    '00000000-0000-0000-0000-000000000000',
+    NOW(),
+    NOW()
+) ON CONFLICT (id) DO UPDATE SET status = 'live';

@@ -51,21 +51,14 @@ export const StudentLiveViewer: React.FC = () => {
         const currentScroll = editorRef.current.getScrollTop();
         const currentPosition = editorRef.current.getPosition();
 
-        requestAnimationFrame(() => {
-          editorRef.current.executeEdits('teacher-stream', [
-            {
-              range: model.getFullModelRange(),
-              text: liveCode,
-              forceMoveMarkers: true,
-            },
-          ]);
-          if (currentPosition) {
-            editorRef.current.setPosition(currentPosition);
-          }
-          if (!followTeacher) {
-            editorRef.current.setScrollTop(currentScroll);
-          }
-        });
+        model.setValue(liveCode);
+
+        if (currentPosition) {
+          editorRef.current.setPosition(currentPosition);
+        }
+        if (!followTeacher) {
+          editorRef.current.setScrollTop(currentScroll);
+        }
       }
     }
   }, [liveCode, followTeacher]);
@@ -164,7 +157,7 @@ export const StudentLiveViewer: React.FC = () => {
           height="100%"
           width="100%"
           language="c"
-          defaultValue={liveCode}
+          value={liveCode}
           onMount={handleEditorDidMount}
           theme="vs-dark"
           options={MONACO_STUDENT_OPTIONS}

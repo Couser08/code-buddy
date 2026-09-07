@@ -33,7 +33,21 @@ interface SessionState {
   updateSubmission: (submissionId: string, feedback: string, score: number) => void;
   setTeacherExecution: (output: EnhancedExecutionResult | null, stdin: string) => void;
   setIsTeacherRunning: (isRunning: boolean) => void;
+  resetLiveCodeToDefault: () => void;
 }
+
+const getInitialLiveCode = (): string => {
+  try {
+    const sessionSaved = localStorage.getItem('codeclass_live_code_00000000-0000-0000-0000-000000000001');
+    if (sessionSaved && sessionSaved.trim()) return sessionSaved;
+
+    const globalSaved = localStorage.getItem('codeclass_live_code_global');
+    if (globalSaved && globalSaved.trim()) return globalSaved;
+  } catch (e) {
+    // LocalStorage unavailable guard
+  }
+  return INITIAL_C_CODE;
+};
 
 export const useSessionStore = create<SessionState>((set) => ({
   currentSession: {
@@ -45,7 +59,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     started_at: new Date(Date.now() - 36 * 60 * 1000).toISOString(), // started 36 mins ago
     created_at: new Date().toISOString(),
   },
-  liveCode: INITIAL_C_CODE,
+  liveCode: getInitialLiveCode(),
   cursorPosition: { lineNumber: 4, column: 12 },
   onlineCount: 87,
   isTeacherLive: true,
@@ -153,7 +167,22 @@ int main() {
   isTeacherRunning: false,
 
   setCurrentSession: (session) => set({ currentSession: session }),
-  setLiveCode: (code) => set({ liveCode: code }),
+  setLiveCode: (code) => {
+    try {
+      localStorage.setItem('codeclass_live_code_global', code);
+      localStorage.setItem('codeclass_live_code_00000000-0000-0000-0000-000000000001', code);
+    } catch (e) {
+      // LocalStorage write error guard
+    }
+    set({ liveCode: code });
+  },
+  resetLiveCodeToDefault: () => {
+    try {
+      localStorage.removeItem('codeclass_live_code_global');
+      localStorage.removeItem('codeclass_live_code_00000000-0000-0000-0000-000000000001');
+    } catch (e) {}
+    set({ liveCode: INITIAL_C_CODE });
+  },
   setCursorPosition: (pos) => set({ cursorPosition: pos }),
   setOnlineCount: (count) => set({ onlineCount: count }),
   setIsTeacherLive: (isLive) => set({ isTeacherLive: isLive }),

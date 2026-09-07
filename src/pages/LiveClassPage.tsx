@@ -49,6 +49,10 @@ export const LiveClassPage: React.FC = () => {
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
 
+  // Seamless Role View Mode Switcher: 'auto' | 'teacher' | 'student'
+  const [viewRole, setViewRole] = useState<'auto' | 'teacher' | 'student'>('auto');
+  const effectiveRole = viewRole === 'auto' ? (isAdmin ? 'teacher' : 'student') : viewRole;
+
   // Live Output & Stdin state for split-screen runner
   const [liveStdin, setLiveStdin] = useState<string>('');
   const [liveOutput, setLiveOutput] = useState<EnhancedExecutionResult | null>(null);
@@ -76,13 +80,13 @@ export const LiveClassPage: React.FC = () => {
 
   const handleRunLiveCode = async () => {
     setIsRunningLive(true);
-    if (isAdmin) {
+    if (effectiveRole === 'teacher' || isAdmin) {
       broadcastExecution(null, liveStdin, true);
     }
     try {
       const result = await executeCodeOnJudge0(liveCode, 50, liveStdin);
       setLiveOutput(result);
-      if (isAdmin) {
+      if (effectiveRole === 'teacher' || isAdmin) {
         broadcastExecution(result, liveStdin, false);
       }
     } catch (err: any) {
@@ -91,7 +95,7 @@ export const LiveClassPage: React.FC = () => {
         status: { id: 11, description: 'Error' },
       };
       setLiveOutput(errRes);
-      if (isAdmin) {
+      if (effectiveRole === 'teacher' || isAdmin) {
         broadcastExecution(errRes, liveStdin, false);
       }
     } finally {
@@ -162,6 +166,34 @@ export const LiveClassPage: React.FC = () => {
               </button>
             </div>
 
+            {/* Role View Mode Switcher (Teacher Broadcasting vs Student Live Stream) */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80 text-xs font-semibold">
+              <button
+                onClick={() => setViewRole('teacher')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                  effectiveRole === 'teacher'
+                    ? 'bg-white text-red-700 shadow-2xs font-bold border border-red-200/60'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Teacher Broadcasting View (Code changes broadcast live to all students)"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span>Teacher Panel</span>
+              </button>
+              <button
+                onClick={() => setViewRole('student')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                  effectiveRole === 'student'
+                    ? 'bg-white text-blue-700 shadow-2xs font-bold border border-blue-200/60'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Student Live Viewer (Synchronized stream as students see it)"
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                <span>Student Panel</span>
+              </button>
+            </div>
+
             {/* Doubts Drawer Toggle */}
             <button
               id="tour-doubts-btn"
@@ -201,7 +233,7 @@ export const LiveClassPage: React.FC = () => {
             </button>
 
             {/* New Task Button for Teacher */}
-            {isAdmin && (
+            {(effectiveRole === 'teacher' || isAdmin) && (
               <button
                 onClick={() => setIsCreateTaskOpen(true)}
                 className="flex items-center gap-1.5 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-98"
@@ -229,7 +261,7 @@ export const LiveClassPage: React.FC = () => {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
             {/* Left 60%: Monaco Code Viewport (7 cols on XL) */}
             <div id="tour-live-editor" className="xl:col-span-7">
-              {isAdmin ? (
+              {effectiveRole === 'teacher' ? (
                 <TeacherLiveEditor
                   onBroadcastCode={broadcastCode}
                   onBroadcastCursor={broadcastCursor}
@@ -260,7 +292,7 @@ export const LiveClassPage: React.FC = () => {
         ) : (
           /* Full Width 100% Editor */
           <div id="tour-live-editor" className="w-full">
-            {isAdmin ? (
+            {effectiveRole === 'teacher' ? (
               <TeacherLiveEditor
                 onBroadcastCode={broadcastCode}
                 onBroadcastCursor={broadcastCursor}

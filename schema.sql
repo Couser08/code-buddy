@@ -207,18 +207,20 @@ CREATE POLICY "Only admin can delete sessions"
     USING (public.is_admin());
 
 -- 3. Live Code State Policies
+DROP POLICY IF EXISTS "Live code state is readable by all users" ON public.live_code_state;
 DROP POLICY IF EXISTS "Live code state is readable by all authenticated users" ON public.live_code_state;
-CREATE POLICY "Live code state is readable by all authenticated users"
+CREATE POLICY "Live code state is readable by all users"
     ON public.live_code_state FOR SELECT
-    TO authenticated
+    TO anon, authenticated
     USING (true);
 
 DROP POLICY IF EXISTS "Only admin can insert or update live code state" ON public.live_code_state;
-CREATE POLICY "Only admin can insert or update live code state"
+DROP POLICY IF EXISTS "Allow upserting live code state for classroom sessions" ON public.live_code_state;
+CREATE POLICY "Allow upserting live code state for classroom sessions"
     ON public.live_code_state FOR ALL
-    TO authenticated
-    USING (public.is_admin())
-    WITH CHECK (public.is_admin());
+    TO anon, authenticated
+    USING (true)
+    WITH CHECK (true);
 
 -- 4. Doubts Policies
 DROP POLICY IF EXISTS "Doubts are viewable by all authenticated session users" ON public.doubts;

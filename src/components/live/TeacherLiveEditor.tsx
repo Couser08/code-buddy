@@ -67,8 +67,9 @@ export const TeacherLiveEditor: React.FC<TeacherLiveEditorProps> = ({
       handleRunCode();
     });
 
-    if (initialCode.current) {
-      editor.setValue(initialCode.current);
+    const codeToLoad = useSessionStore.getState().liveCode || initialCode.current;
+    if (codeToLoad) {
+      editor.setValue(codeToLoad);
     }
   };
 
