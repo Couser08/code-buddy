@@ -41,12 +41,12 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   }, [isPlaying, currentStepIndex, totalSteps, speed, onNext]);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-4 text-slate-100 shadow-md">
+    <div className="bg-white border border-slate-200/90 rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-4 text-slate-800 shadow-xs">
       {/* Left: Step Controls & Play/Pause */}
       <div className="flex items-center gap-2">
         <button
           onClick={onReset}
-          className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-700"
+          className="p-2 text-slate-500 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
           title="Reset to Step 1"
         >
           <RotateCcw className="w-4 h-4" />
@@ -55,7 +55,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <button
           onClick={onPrev}
           disabled={currentStepIndex <= 0}
-          className="p-2 text-slate-400 hover:text-white disabled:opacity-40 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer border border-transparent hover:border-slate-700"
+          className="p-2 text-slate-500 hover:text-slate-900 disabled:opacity-30 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
           title="Previous Line (|◀)"
         >
           <SkipBack className="w-4 h-4" />
@@ -64,7 +64,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <button
           onClick={() => setIsPlaying(!isPlaying)}
           disabled={totalSteps <= 1}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs transition-all active:scale-98 cursor-pointer disabled:opacity-50"
         >
           {isPlaying ? (
             <>
@@ -82,7 +82,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <button
           onClick={onNext}
           disabled={currentStepIndex >= totalSteps - 1}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 hover:text-white rounded-xl font-bold text-xs transition-colors cursor-pointer border border-slate-700"
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-800 hover:text-slate-950 rounded-xl font-bold text-xs transition-colors cursor-pointer border border-slate-200/80"
           title="Next Line (▶|)"
         >
           <span>Step Next</span>
@@ -92,7 +92,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
 
       {/* Center: Timeline Scrubber */}
       <div className="flex-1 min-w-[200px] max-w-md flex items-center gap-3">
-        <span className="text-[11px] font-mono text-slate-400">1</span>
+        <span className="text-[11px] font-mono text-slate-400 font-bold">1</span>
         <input
           type="range"
           min={0}
@@ -102,9 +102,9 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             setIsPlaying(false);
             onSeek(parseInt(e.target.value, 10));
           }}
-          className="w-full accent-blue-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+          className="w-full accent-blue-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
         />
-        <span className="text-[11px] font-mono text-slate-400">{totalSteps}</span>
+        <span className="text-[11px] font-mono text-slate-400 font-bold">{totalSteps}</span>
       </div>
 
       {/* Right: Speed Toggle & Status Badge */}
@@ -114,20 +114,21 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           onClick={() => {
             setSpeed(speed === 0.5 ? 1 : speed === 1 ? 2 : 0.5);
           }}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-mono font-semibold text-slate-300 cursor-pointer transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-mono font-bold text-slate-700 cursor-pointer transition-colors shadow-2xs"
           title="Toggle Playback Speed"
         >
-          <FastForward className="w-3 h-3 text-blue-400" />
+          <FastForward className="w-3 h-3 text-blue-600" />
           <span>{speed}x</span>
         </button>
 
         {/* Current step & line indicator */}
-        <div className="px-3 py-1.5 bg-[#080C14] border border-slate-800 rounded-xl text-xs font-mono text-slate-300 flex items-center gap-2">
-          <span className="text-blue-400 font-bold">Step {currentStepIndex + 1}/{totalSteps}</span>
-          <span className="text-slate-600">•</span>
-          <span className="text-emerald-400 font-semibold">Line {currentLineNumber}</span>
+        <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-700 flex items-center gap-2 shadow-2xs">
+          <span className="text-blue-700 font-bold">Step {currentStepIndex + 1}/{totalSteps}</span>
+          <span className="text-slate-300">•</span>
+          <span className="text-emerald-700 font-bold">Line {currentLineNumber}</span>
         </div>
       </div>
     </div>
   );
 };
+

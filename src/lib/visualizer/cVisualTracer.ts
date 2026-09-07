@@ -2,6 +2,8 @@
 // Parses C code constructs (variables, pointers, arrays, structs, if-else, switch, loops)
 // and produces step-by-step memory frames with Hinglish explanations and real-life analogies.
 
+import { VISUALIZER_TOPICS, VisualizerTopic } from './predefinedExamples';
+
 export interface VariableState {
   name: string;
   type: string;
@@ -47,15 +49,33 @@ export interface StructState {
   members: StructMember[];
 }
 
+export interface StackItem {
+  id: string;
+  name: string;
+  value: any;
+  address: string;
+  isTop: boolean;
+}
+
+export interface QueueItem {
+  index: number;
+  value: any;
+  status: 'front' | 'enqueued' | 'dequeued';
+}
+
 export interface ExecutionStep {
   stepIndex: number;
   lineNumber: number;
   codeLine: string;
   actionDescription: string;
+  conceptName?: string;
+  whyUseProfessionally?: string;
   variables: VariableState[];
   pointers: PointerLink[];
   arrays: ArrayState[];
   structures: StructState[];
+  stackItems?: StackItem[];
+  queueItems?: QueueItem[];
   branchState?: {
     condition: string;
     evaluatedTo: boolean;
@@ -84,7 +104,44 @@ export interface ExecutionStep {
 
 const HEX_BASE = 0x7ffd00;
 
-export function traceCCode(code: string): ExecutionStep[] {
+export function detectTopicFromCode(code: string, topicId?: string): VisualizerTopic {
+  if (topicId) {
+    const found = VISUALIZER_TOPICS.find((t) => t.id === topicId);
+    if (found) return found;
+  }
+  const lower = code.toLowerCase();
+  if (lower.includes('plate') || lower.includes('lifo') || lower.includes('stack')) {
+    return VISUALIZER_TOPICS.find((t) => t.id === 'stack-lifo') || VISUALIZER_TOPICS[2];
+  }
+  if (lower.includes('queue') || lower.includes('fifo') || lower.includes('enqueue') || lower.includes('dequeue')) {
+    return VISUALIZER_TOPICS.find((t) => t.id === 'queue-fifo') || VISUALIZER_TOPICS[3];
+  }
+  if (code.includes('*') && (code.includes('&') || code.includes('*ptr') || code.includes('*p'))) {
+    return VISUALIZER_TOPICS.find((t) => t.id === 'pointers-basics') || VISUALIZER_TOPICS[1];
+  }
+  if (code.includes('struct ')) {
+    return VISUALIZER_TOPICS.find((t) => t.id === 'structures-struct') || VISUALIZER_TOPICS[5];
+  }
+  if (code.includes('arr[') || code.includes('][') || /\w+\[\d+\]/.test(code)) {
+    return VISUALIZER_TOPICS.find((t) => t.id === 'arrays-contiguous') || VISUALIZER_TOPICS[4];
+  }
+  if (code.includes('for (') || code.includes('while (')) {
+    return VISUALIZER_TOPICS.find((t) => t.id === 'for-while-loops') || VISUALIZER_TOPICS[6];
+  }
+  if (code.includes('switch (')) {
+    return VISUALIZER_TOPICS.find((t) => t.id === 'switch-case') || VISUALIZER_TOPICS[8];
+  }
+  if (code.includes('if (')) {
+    return VISUALIZER_TOPICS.find((t) => t.id === 'if-else-branching') || VISUALIZER_TOPICS[7];
+  }
+  return VISUALIZER_TOPICS[0];
+}
+
+export function traceCCode(code: string, topicId?: string): ExecutionStep[] {
+  const activeTopic = detectTopicFromCode(code, topicId);
+  const isStackTopic = activeTopic.id === 'stack-lifo';
+  const isQueueTopic = activeTopic.id === 'queue-fifo';
+
   const lines = code.split('\n');
   const steps: ExecutionStep[] = [];
 
@@ -115,21 +172,31 @@ export function traceCCode(code: string): ExecutionStep[] {
 
     if (trimmed.includes('main(')) {
       inMain = true;
+      const initialCallStack = isStackTopic
+        ? ['Stack Frame: main() [RSP Initialized @ 0x7ffd00]']
+        : isQueueTopic
+        ? ['Queue Buffer: Initialized [Front=0, Rear=0]']
+        : [`main() Stack Frame @ 0x7ffd00`];
+
       steps.push({
         stepIndex: steps.length + 1,
         lineNumber: lineNum,
         codeLine: rawLine,
-        actionDescription: 'Program execution starts in main()',
+        actionDescription: `${activeTopic.conceptName} - System Setup`,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
         structures: Array.from(structures.values()),
-        callStack: ['main()'],
+        stackItems: [],
+        queueItems: [],
+        callStack: initialCallStack,
         stdout: stdoutAccumulator,
-        hinglishExplanation: 'C program ka execution hamesha main() function se start hota hai. Operating System ne stack frame create kar diya hai.',
-        analogyTitle: 'Ghar Ka Main Gate',
-        analogyText: 'Jaise kisi school ya function me sabhi log Main Gate (main function) se enter karte hain, waise hi C compiler execute hona main() se hi start karta hai.',
-        analogyIcon: 'DoorOpen',
+        hinglishExplanation: `${activeTopic.title} architecture initialize ho raha hai. ${activeTopic.analogyDescription}`,
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -172,21 +239,36 @@ export function traceCCode(code: string): ExecutionStep[] {
         elements,
       });
 
+      const queueElements: QueueItem[] = isQueueTopic
+        ? elements.map((el) => ({
+            index: el.index,
+            value: el.value,
+            status: el.index === 0 ? 'front' : 'enqueued',
+          }))
+        : [];
+
       steps.push({
         stepIndex: steps.length + 1,
         lineNumber: lineNum,
         codeLine: rawLine,
-        actionDescription: `Allocated contiguous array ${arrName}[${size}] of type ${type}`,
+        actionDescription: isQueueTopic
+          ? `FIFO Queue Buffer initialized with ${size} arrivals (Front: ${elements[0]?.value}, Rear: ${elements[size - 1]?.value})`
+          : `Allocated contiguous array ${arrName}[${size}] of type ${type}`,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
         structures: Array.from(structures.values()),
-        callStack: ['main()'],
+        queueItems: isQueueTopic ? queueElements : undefined,
+        callStack: isQueueTopic ? [`Queue Buffer [Capacity: ${size} | Active: ${size}]`] : ['main()'],
         stdout: stdoutAccumulator,
-        hinglishExplanation: `Memory me '${arrName}' ke liye lagataar (contiguous) ${size * elemSize} bytes reserve ho gaye hain. Har agla element pichle wale se ${elemSize} bytes aage hai.`,
-        analogyTitle: 'Train Ke Connected Dibbe',
-        analogyText: `Array bilkul train ke dibbo ki tarah hai! Sabhi dibbe (cells) ek ke baad ek jude hue hain. Train ka ek naam hai ('${arrName}') aur har seat ka ek number hai index [0], [1], [2].`,
-        analogyIcon: 'Grid',
+        hinglishExplanation: isQueueTopic
+          ? `Queue buffer me ${size} items FIFO order me arrive huye. Sabse pehla item '${elements[0]?.value}' Front pointer par hai aur serve hone ke liye ready hai!`
+          : `Memory me '${arrName}' ke liye lagataar (contiguous) ${size * elemSize} bytes reserve ho gaye hain. Har agla element pichle wale se ${elemSize} bytes aage hai.`,
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -199,9 +281,9 @@ export function traceCCode(code: string): ExecutionStep[] {
 
       const vals = initValsStr ? initValsStr.split(',').map((s) => s.trim().replace(/['"]/g, '')) : ['101', 'Rahul', '88.5'];
       const members: StructMember[] = [
-        { name: 'id', type: 'int', value: vals[0] || '101', offset: 0 },
+        { name: 'roll_no', type: 'int', value: vals[0] || '101', offset: 0 },
         { name: 'name', type: 'char[20]', value: vals[1] || 'Rahul', offset: 4 },
-        { name: 'marks', type: 'float', value: vals[2] || '88.5', offset: 24 },
+        { name: 'marks', type: 'float', value: vals[2] || '92.5', offset: 24 },
       ];
 
       structures.set(varName, {
@@ -217,6 +299,8 @@ export function traceCCode(code: string): ExecutionStep[] {
         lineNumber: lineNum,
         codeLine: rawLine,
         actionDescription: `Created structure variable '${varName}' of type struct ${structType}`,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
@@ -224,9 +308,9 @@ export function traceCCode(code: string): ExecutionStep[] {
         callStack: ['main()'],
         stdout: stdoutAccumulator,
         hinglishExplanation: `'struct ${structType}' ne alag-alag data types (int, string, float) ko ek single packet '${varName}' me pack kar diya hai. Memory address ${baseAddr} par poora record store hai.`,
-        analogyTitle: 'Student Biodata / ID Card',
-        analogyText: 'Structure ek Student ID card ki tarah hai jisme ek hi card par student ka Roll No (int), Naam (string), aur Attendance Percentage (float) ek sath store hota hai.',
-        analogyIcon: 'CreditCard',
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -270,8 +354,10 @@ export function traceCCode(code: string): ExecutionStep[] {
         lineNumber: lineNum,
         codeLine: rawLine,
         actionDescription: targetVarName
-          ? `Pointer '${ptrName}' now stores address of '${targetVarName}' (${targetAddr})`
+          ? `Pointer '${ptrName}' holds memory address of '${targetVarName}' (&${targetVarName} = ${targetAddr})`
           : `Declared pointer variable '${ptrName}' (uninitialized / NULL)`,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
@@ -279,11 +365,11 @@ export function traceCCode(code: string): ExecutionStep[] {
         callStack: ['main()'],
         stdout: stdoutAccumulator,
         hinglishExplanation: targetVarName
-          ? `Pointer '${ptrName}' ne '${targetVarName}' ka memory address (${targetAddr}) store kiya. Ab '${ptrName}' seedha '${targetVarName}' ki memory location ko point kar raha hai!`
+          ? `Pointer '${ptrName}' ne '${targetVarName}' ka physical memory address (${targetAddr}) store kar liya. Ab '${ptrName}' seedha '${targetVarName}' ke RAM cell ko point kar raha hai!`
           : `Pointer '${ptrName}' ban chuka hai. Yeh kisi normal number ko nahi, balki memory address ko hold karega.`,
-        analogyTitle: 'Ghar Ka Address (GPS Parchi)',
-        analogyText: `Pointer ek parchi (slip) ki tarah hai. Parchi me saman nahi hota, balki kisi doosre ke ghar ka address likha hota hai (${targetAddr}). Jab aap *${ptrName} bolte ho, to aap us ghar me rakha saman dekh rahe ho!`,
-        analogyIcon: 'Navigation',
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -305,17 +391,19 @@ export function traceCCode(code: string): ExecutionStep[] {
           stepIndex: steps.length + 1,
           lineNumber: lineNum,
           codeLine: rawLine,
-          actionDescription: `Dereferenced *${ptrName} and updated target variable '${link.toVar}' to ${newVal}`,
+          actionDescription: `Dereferenced *${ptrName} = ${newVal}: Directly updated memory of '${link.toVar}' at ${link.toAddress}`,
+          conceptName: activeTopic.conceptName,
+          whyUseProfessionally: activeTopic.whyUseProfessionally,
           variables: Array.from(variables.values()),
           pointers: [...pointers],
           arrays: Array.from(arrays.values()),
           structures: Array.from(structures.values()),
           callStack: ['main()'],
           stdout: stdoutAccumulator,
-          hinglishExplanation: `*${ptrName} ka matlab hai: "${ptrName} jis address par point kar raha hai (${link.toAddress}), us address par jaao aur value ko badal kar ${newVal} kar do". '${link.toVar}' ki value automatically badal gayi!`,
-          analogyTitle: 'Remote Se TV Ka Channel Badalna',
-          analogyText: 'Aapne TV ko haath nahi lagaya, bas Remote (*ptr) se button dabaya aur TV (target variable) ka channel (value) badal gaya!',
-          analogyIcon: 'Tv',
+          hinglishExplanation: `*${ptrName} ka use karke CPU ne '${ptrName}' ke pointer address (${link.toAddress}) par direct jump kiya aur '${link.toVar}' ki value ko ${newVal} se overwrite kar diya. Original variable ko direct touch kiye bina memory mutate ho gayi!`,
+          analogyTitle: activeTopic.analogyTitle,
+          analogyText: activeTopic.analogyDescription,
+          analogyIcon: activeTopic.analogyIcon,
         });
       }
       continue;
@@ -330,7 +418,12 @@ export function traceCCode(code: string): ExecutionStep[] {
       let val: any = 0;
 
       if (initValStr) {
-        val = evalMathSimple(initValStr, variables);
+        if (initValStr.includes('queue[0]') && arrays.has('queue')) {
+          const qArr = arrays.get('queue')!;
+          val = qArr.elements[0]?.value ?? 101;
+        } else {
+          val = evalMathSimple(initValStr, variables);
+        }
       }
 
       variables.set(varName, {
@@ -342,21 +435,61 @@ export function traceCCode(code: string): ExecutionStep[] {
         highlight: true,
       });
 
+      const isStackItem = isStackTopic && varName.toLowerCase().includes('plate');
+      const isQueueDequeue = isQueueTopic && Boolean(initValStr && initValStr.includes('queue[0]'));
+
+      const currentStackItems: StackItem[] = isStackTopic
+        ? Array.from(variables.values()).map((v, idx, arr) => ({
+            id: v.name,
+            name: v.name,
+            value: v.value,
+            address: v.address,
+            isTop: idx === arr.length - 1,
+          }))
+        : [];
+
+      const currentQueueItems: QueueItem[] = isQueueTopic
+        ? (arrays.get('queue')?.elements || []).map((el) => ({
+            index: el.index,
+            value: el.value,
+            status: isQueueDequeue && el.index === 0 ? 'dequeued' : el.index === (isQueueDequeue ? 1 : 0) ? 'front' : 'enqueued',
+          }))
+        : [];
+
+      let actionDesc = `Allocated ${type} variable '${varName}' = ${val} (${byteSize}B at ${addr})`;
+      let hinglish = `RAM me '${varName}' ke liye ${byteSize} bytes reserve huye. Address '${addr}' par value '${val}' write ho gayi.`;
+
+      if (isStackItem) {
+        actionDesc = `PUSH: Added '${varName}' (${val}) onto Stack Frame (Depth: ${variables.size}, Top of Stack = ${varName})`;
+        hinglish = `'${varName}' (${val}) ko stack frame ke top par PUSH kiya gaya. Hardware Stack Pointer (RSP) shift ho gaya aur ye variable ab active Top of Stack hai.`;
+      } else if (isQueueDequeue) {
+        actionDesc = `FIFO DEQUEUE: Served Front ticket ID (${val}) to '${varName}'`;
+        hinglish = `FIFO rule execute hua: Queue ke front par khada pehla element (${val}) serve ho chuka hai aur dequeue ho gaya!`;
+      }
+
       steps.push({
         stepIndex: steps.length + 1,
         lineNumber: lineNum,
         codeLine: rawLine,
-        actionDescription: `Declared ${type} variable '${varName}' with value ${val} at address ${addr}`,
+        actionDescription: actionDesc,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
         structures: Array.from(structures.values()),
-        callStack: ['main()'],
+        stackItems: isStackTopic ? currentStackItems : undefined,
+        queueItems: isQueueTopic ? currentQueueItems : undefined,
+        callStack: isStackTopic
+          ? [`Stack Frame [Depth: ${variables.size} | Top of Stack: ${varName}]`]
+          : isQueueDequeue
+          ? [`Queue Buffer [Served: 1 | Remaining: 2]`]
+          : ['main()'],
         stdout: stdoutAccumulator,
-        hinglishExplanation: `RAM me ek naya memory slot book hua. Name '${varName}', Type '${type}' (${byteSize} bytes), Address '${addr}', aur value '${val}' store ho gayi.`,
-        analogyTitle: 'Labeled Dabba (Container)',
-        analogyText: `Variable ek dabba hai jiske upar label laga hai '${varName}'. Is dabbe me sirf '${type}' type ka saman aa sakta hai, aur abhi isme '${val}' rakha hai.`,
-        analogyIcon: 'Box',
+        hinglishExplanation: hinglish,
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -377,6 +510,8 @@ export function traceCCode(code: string): ExecutionStep[] {
           lineNumber: lineNum,
           codeLine: rawLine,
           actionDescription: `Updated variable '${varName}': ${oldVal} ➔ ${newVal}`,
+          conceptName: activeTopic.conceptName,
+          whyUseProfessionally: activeTopic.whyUseProfessionally,
           variables: Array.from(variables.values()),
           pointers: [...pointers],
           arrays: Array.from(arrays.values()),
@@ -384,9 +519,9 @@ export function traceCCode(code: string): ExecutionStep[] {
           callStack: ['main()'],
           stdout: stdoutAccumulator,
           hinglishExplanation: `'${varName}' ke purane data (${oldVal}) ko overwrite karke naya data (${newVal}) daal diya gaya. Memory address (${targetVar.address}) wahi raha.`,
-          analogyTitle: 'Dabbe Ka Saman Badla',
-          analogyText: `Dabba wahi hai, address wahi hai, bas dabbe ke andar ka purana saman nikaal kar naya saman (${newVal}) rakh diya gaya.`,
-          analogyIcon: 'RefreshCw',
+          analogyTitle: activeTopic.analogyTitle,
+          analogyText: activeTopic.analogyDescription,
+          analogyIcon: activeTopic.analogyIcon,
         });
         continue;
       }
@@ -403,6 +538,8 @@ export function traceCCode(code: string): ExecutionStep[] {
         lineNumber: lineNum,
         codeLine: rawLine,
         actionDescription: `Evaluating condition (${condition}) ➔ ${evaluated ? 'TRUE' : 'FALSE'}`,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
@@ -415,13 +552,11 @@ export function traceCCode(code: string): ExecutionStep[] {
         callStack: ['main()'],
         stdout: stdoutAccumulator,
         hinglishExplanation: evaluated
-          ? `Condition (${condition}) TRUE nikli! Isliye program 'if' block ke andar jayega aur uske andar ka code chalega.`
-          : `Condition (${condition}) FALSE ho gayi! Isliye 'if' block ka code skip hoga aur program aage badhega (ya 'else' block me jayega).`,
-        analogyTitle: 'Traffic Signal & Road Fork',
-        analogyText: evaluated
-          ? 'Signal GREEN hai! Gaadi aage chal sakti hai (if block execute ho raha hai).'
-          : 'Signal RED hai! Ye rasta band hai, dusre raste (else) par jaana padega.',
-        analogyIcon: 'GitFork',
+          ? `Condition (${condition}) TRUE nikli! Program CPU jump flag set karke 'if' block execute karega.`
+          : `Condition (${condition}) FALSE ho gayi! 'if' block skip hoga aur program 'else' ya agle statement par badhega.`,
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -437,6 +572,8 @@ export function traceCCode(code: string): ExecutionStep[] {
         lineNumber: lineNum,
         codeLine: rawLine,
         actionDescription: `Evaluating switch expression '${expr}' (value = ${val})`,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
@@ -448,10 +585,10 @@ export function traceCCode(code: string): ExecutionStep[] {
         },
         callStack: ['main()'],
         stdout: stdoutAccumulator,
-        hinglishExplanation: `Switch statement '${expr}' ki value (${val}) ko check kar raha hai. Yeh seedha 'case ${val}:' par jump karega bina beech ke cases ko ek-ek karke check kiye!`,
-        analogyTitle: 'TV Remote Ka Channel Button',
-        analogyText: 'TV Remote par jab aap button 3 dabate ho, to direct Channel 3 khulta hai, aapko 1 aur 2 channel dekhne ki zaroorat nahi hoti. Yehi switch case ka magic hai!',
-        analogyIcon: 'LayoutList',
+        hinglishExplanation: `Switch statement '${expr}' ki value (${val}) ko evaluate kar raha hai. Compiler O(1) Jump Table lookup se seedha matching case par switch karega.`,
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -465,6 +602,8 @@ export function traceCCode(code: string): ExecutionStep[] {
         lineNumber: lineNum,
         codeLine: rawLine,
         actionDescription: `Execution reached 'case ${caseVal}:'`,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
@@ -472,9 +611,9 @@ export function traceCCode(code: string): ExecutionStep[] {
         callStack: ['main()'],
         stdout: stdoutAccumulator,
         hinglishExplanation: `Target case ${caseVal} match ho gaya. Ab is case ke instructions run honge jab tak 'break' nahi milta.`,
-        analogyTitle: 'Restaurant Menu Order',
-        analogyText: 'Waiter ne menu me se aapka exact order (Case) identify kar liya hai aur ab wo item kitchen me ban raha hai.',
-        analogyIcon: 'CheckCircle2',
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -505,6 +644,8 @@ export function traceCCode(code: string): ExecutionStep[] {
           lineNumber: lineNum,
           codeLine: rawLine,
           actionDescription: `Loop iteration #${iter + 1}: ${varName} = ${currentVal}, check condition (${condStr}) ➔ ${conditionMet ? 'CONTINUE' : 'TERMINATED'}`,
+          conceptName: activeTopic.conceptName,
+          whyUseProfessionally: activeTopic.whyUseProfessionally,
           variables: Array.from(variables.values()),
           pointers: [...pointers],
           arrays: Array.from(arrays.values()),
@@ -520,13 +661,11 @@ export function traceCCode(code: string): ExecutionStep[] {
           callStack: ['main()'],
           stdout: stdoutAccumulator,
           hinglishExplanation: conditionMet
-            ? `Iteration #${iter + 1}: '${varName}' ki value ${currentVal} hai. Condition '${condStr}' TRUE hai, isliye loop ka body phir se chalega.`
-            : `Loop complete! '${varName}' ki value ${currentVal} hone par condition FALSE ho gayi, aur program loop se bahar nikal gaya.`,
-          analogyTitle: 'Chhat (Terrace) Ke Chakkar',
-          analogyText: conditionMet
-            ? `Ye aapka chakkar number #${iter + 1} hai. Abhi round target baki hai, isliye daudte raho!`
-            : 'Sare chakkar complete ho gaye! Ab daudna band karke aage badho.',
-          analogyIcon: 'RotateCw',
+            ? `Iteration #${iter + 1}: '${varName}' = ${currentVal}. Condition '${condStr}' TRUE hai, loop body execute hogi.`
+            : `Loop complete! '${varName}' = ${currentVal} hone par boundary condition FALSE ho gayi aur loop terminate hua.`,
+          analogyTitle: activeTopic.analogyTitle,
+          analogyText: activeTopic.analogyDescription,
+          analogyIcon: activeTopic.analogyIcon,
         });
 
         if (!conditionMet) break;
@@ -551,21 +690,54 @@ export function traceCCode(code: string): ExecutionStep[] {
       }
       stdoutAccumulator += outputText;
 
+      let actionDesc = `Standard Output printed: "${outputText.trim()}"`;
+      let hinglish = `printf() ne terminal stream par text print kar diya. OS stdout buffer flushed.`;
+
+      if (isStackTopic && rawLine.includes('plate3')) {
+        actionDesc = `LIFO PEEK / ACCESS: Top of Stack is plate3 = ${variables.get('plate3')?.value || 30}`;
+        hinglish = `LIFO Rule Verified: Jo plate sabse aakhri me push hui thi (plate3 = 30), wahi sabse pehle access hui (Last In, First Out).`;
+      } else if (isQueueTopic && rawLine.includes('firstStudent')) {
+        actionDesc = `FIFO SERVICE VERIFIED: First student ID ${variables.get('firstStudent')?.value || 101} served`;
+        hinglish = `FIFO Rule Verified: Jo student sabse pehle line me aaya tha, wahi sabse pehle process hua (First In, First Out).`;
+      }
+
       steps.push({
         stepIndex: steps.length + 1,
         lineNumber: lineNum,
         codeLine: rawLine,
-        actionDescription: `Standard Output printed: "${outputText.trim()}"`,
+        actionDescription: actionDesc,
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
         structures: Array.from(structures.values()),
-        callStack: ['main()'],
+        stackItems: isStackTopic
+          ? Array.from(variables.values()).map((v, idx, arr) => ({
+              id: v.name,
+              name: v.name,
+              value: v.value,
+              address: v.address,
+              isTop: idx === arr.length - 1,
+            }))
+          : undefined,
+        queueItems: isQueueTopic
+          ? (arrays.get('queue')?.elements || []).map((el) => ({
+              index: el.index,
+              value: el.value,
+              status: el.index === 0 ? 'dequeued' : el.index === 1 ? 'front' : 'enqueued',
+            }))
+          : undefined,
+        callStack: isStackTopic
+          ? [`Stack Frame [Depth: ${variables.size} | Top of Stack: plate3]`]
+          : isQueueTopic
+          ? [`Queue Buffer [Served: 1 | Remaining: 2]`]
+          : ['main()'],
         stdout: stdoutAccumulator,
-        hinglishExplanation: `printf() ne terminal screen par text print kar diya. OS stdout buffer update hua.`,
-        analogyTitle: 'Classroom Ka Loudspeaker',
-        analogyText: 'printf program ka loudspeaker hai - jo bhi message isme pass karoge wo terminal screen par sabko sunayi/dikhayi dega.',
-        analogyIcon: 'Megaphone',
+        hinglishExplanation: hinglish,
+        analogyTitle: activeTopic.analogyTitle,
+        analogyText: activeTopic.analogyDescription,
+        analogyIcon: activeTopic.analogyIcon,
       });
       continue;
     }
@@ -576,14 +748,16 @@ export function traceCCode(code: string): ExecutionStep[] {
         stepIndex: steps.length + 1,
         lineNumber: lineNum,
         codeLine: rawLine,
-        actionDescription: 'return 0: main() finished successfully, returning exit code 0 to OS',
+        actionDescription: 'return 0: main() finished successfully, deallocating stack frame from memory',
+        conceptName: activeTopic.conceptName,
+        whyUseProfessionally: activeTopic.whyUseProfessionally,
         variables: Array.from(variables.values()),
         pointers: [...pointers],
         arrays: Array.from(arrays.values()),
         structures: Array.from(structures.values()),
         callStack: [],
         stdout: stdoutAccumulator,
-        hinglishExplanation: 'return 0 ka matlab program bina kisi error ke successfully finish ho gaya hai. Stack frame memory se clean ho gaya.',
+        hinglishExplanation: 'return 0 ke sath execution complete ho gaya. Operating System ne stack frame aur local variables ko memory se clean (pop) kar diya.',
         analogyTitle: 'Success Stamp / Thumbs Up',
         analogyText: 'Jaise exam paper submit karte waqt supervisor "All Done" stamp lagata hai, return 0 operating system ko batata hai ki sab badiya raha!',
         analogyIcon: 'CheckCheck',

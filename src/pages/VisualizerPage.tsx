@@ -33,10 +33,10 @@ export const VisualizerPage: React.FC = () => {
     return VISUALIZER_TOPICS.find((t) => t.id === selectedTopicId) || VISUALIZER_TOPICS[0];
   }, [selectedTopicId]);
 
-  // Compute execution steps whenever code changes
+  // Compute execution steps whenever code or topic changes
   const steps: ExecutionStep[] = useMemo(() => {
-    return traceCCode(code);
-  }, [code]);
+    return traceCCode(code, selectedTopicId);
+  }, [code, selectedTopicId]);
 
   const currentStep = steps[currentStepIndex] || steps[0] || null;
 
@@ -67,8 +67,8 @@ export const VisualizerPage: React.FC = () => {
             range: new monacoRef.current.Range(line, 1, line, 1),
             options: {
               isWholeLine: true,
-              className: 'bg-blue-500/20 border-l-4 border-blue-500',
-              glyphMarginClassName: 'text-blue-500 font-bold',
+              className: 'bg-blue-100/80 border-l-4 border-blue-600',
+              glyphMarginClassName: 'text-blue-600 font-bold',
             },
           },
         ]);
@@ -152,7 +152,7 @@ export const VisualizerPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex-1 w-full relative bg-[#1E1E1E]">
+          <div className="flex-1 w-full relative bg-white">
             <Editor
               height="100%"
               width="100%"
@@ -163,7 +163,7 @@ export const VisualizerPage: React.FC = () => {
                 setCurrentStepIndex(0);
               }}
               onMount={handleEditorDidMount}
-              theme="vs-dark"
+              theme="vs"
               options={MONACO_OPTIONS}
             />
           </div>

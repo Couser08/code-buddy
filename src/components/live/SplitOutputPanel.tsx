@@ -215,13 +215,19 @@ export const SplitOutputPanel: React.FC<SplitOutputPanelProps> = ({
       </div>
 
       {/* Main Terminal Screen Area */}
-      <div className="flex-1 bg-[#090D16] text-slate-200 font-mono text-xs flex flex-col overflow-hidden">
+      <div className={`flex-1 font-mono text-xs flex flex-col overflow-hidden ${
+        activeTab === 'memory' ? 'bg-[#F8F9FA] text-slate-800' : 'bg-[#090D16] text-slate-200'
+      }`}>
         {/* Environment Status Sub-bar */}
-        <div className="px-5 py-2 bg-[#060910] border-b border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 select-none shrink-0">
+        <div className={`px-5 py-2 border-b flex items-center justify-between text-[11px] select-none shrink-0 ${
+          activeTab === 'memory'
+            ? 'bg-white border-slate-200 text-slate-600'
+            : 'bg-[#060910] border-slate-800/80 text-slate-400'
+        }`}>
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-slate-300">
-              <Cpu className="w-3 h-3 text-blue-400" />
-              GCC 10.2.0 • x86_64
+            <span className={`flex items-center gap-1.5 ${activeTab === 'memory' ? 'text-slate-700 font-semibold' : 'text-slate-300'}`}>
+              <Cpu className="w-3 h-3 text-blue-500" />
+              {activeTab === 'memory' ? 'Interactive Memory Tracer • x86_64' : 'GCC 10.2.0 • x86_64'}
             </span>
             {isLiveClassroom && consoleSource === 'teacher' && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
