@@ -162,6 +162,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenQuickDoubt, onOpenAuth }
 
       {/* Bottom Section */}
       <div className="space-y-3 pt-3 border-t border-slate-100">
+        {/* Your Progress Widget */}
+        {isCollapsed ? (
+          <div
+            title="Your progress: 30% (3 / 10 topics completed)"
+            className="w-10 h-10 mx-auto rounded-xl bg-slate-50 border border-slate-200 flex flex-col items-center justify-center cursor-pointer shadow-2xs"
+          >
+            <span className="text-[10px] font-extrabold text-blue-600 leading-none">30%</span>
+            <div className="w-6 bg-slate-200 h-1 rounded-full overflow-hidden mt-1">
+              <div className="bg-blue-600 h-full rounded-full" style={{ width: '30%' }} />
+            </div>
+          </div>
+        ) : (
+          <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+              <span>Your progress</span>
+              <span className="text-blue-600 font-extrabold">30%</span>
+            </div>
+            <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+              <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: '30%' }} />
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+              <span>3 / 10 topics</span>
+              <span className="text-emerald-600 font-bold text-[10px]">● Active</span>
+            </div>
+          </div>
+        )}
         {/* "Practice in Playground" Widget Card */}
         {isCollapsed ? (
           <button

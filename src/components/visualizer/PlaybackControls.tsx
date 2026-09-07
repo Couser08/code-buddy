@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, RotateCcw, FastForward } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, RotateCcw, FastForward, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PlaybackControlsProps {
   currentStepIndex: number;
@@ -121,11 +121,34 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <span>{speed}x</span>
         </button>
 
-        {/* Current step & line indicator */}
-        <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-700 flex items-center gap-2 shadow-2xs">
-          <span className="text-blue-700 font-bold">Step {currentStepIndex + 1}/{totalSteps}</span>
-          <span className="text-slate-300">•</span>
-          <span className="text-emerald-700 font-bold">Line {currentLineNumber}</span>
+        {/* Stepper: < Step X / Y > */}
+        <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-2xs">
+          <button
+            onClick={onPrev}
+            disabled={currentStepIndex <= 0}
+            className="p-1 hover:bg-slate-200/70 disabled:opacity-30 rounded-lg text-slate-700 cursor-pointer transition-colors"
+            title="Step back"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <div className="px-2 text-xs font-mono font-bold text-slate-800 select-none">
+            Step <span className="text-blue-600">{currentStepIndex + 1}</span> / {totalSteps}
+          </div>
+
+          <button
+            onClick={onNext}
+            disabled={currentStepIndex >= totalSteps - 1}
+            className="p-1 hover:bg-slate-200/70 disabled:opacity-30 rounded-lg text-slate-700 cursor-pointer transition-colors"
+            title="Step forward"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Active Line indicator */}
+        <div className="hidden sm:flex px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-mono text-emerald-700 font-bold shadow-2xs">
+          Line {currentLineNumber}
         </div>
       </div>
     </div>

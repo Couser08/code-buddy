@@ -2,13 +2,13 @@ import React from 'react';
 import { ExecutionStep } from '../../lib/visualizer/cVisualTracer';
 import {
   Layers,
-  GitBranch,
-  ArrowRight,
-  CornerDownRight,
   Box,
   CreditCard,
+  Grid,
+  ArrowRight,
+  CornerDownRight,
+  GitBranch,
   RotateCw,
-  ArrowDown,
   Users,
   CheckCircle2,
 } from 'lucide-react';
@@ -21,11 +21,11 @@ interface MemoryCanvasProps {
 export const MemoryCanvas: React.FC<MemoryCanvasProps> = ({ currentStep }) => {
   if (!currentStep) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-slate-500 p-8 text-center bg-white rounded-3xl border border-slate-200/90 shadow-xs">
-        <Box className="w-12 h-12 mb-3 text-slate-400 animate-pulse" />
-        <h3 className="text-sm font-bold text-slate-800">Visual Memory Canvas Idle</h3>
+      <div className="flex flex-col items-center justify-center h-full text-slate-500 p-8 text-center bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
+        <Box className="w-10 h-10 mb-2 text-slate-400 animate-pulse" />
+        <h3 className="text-sm font-bold text-slate-800">Visual Memory Idle</h3>
         <p className="text-xs text-slate-500 max-w-xs mt-1">
-          Click &quot;Step Next ▶&quot; or &quot;Auto Play&quot; to initialize stack memory and trace variables.
+          Click &quot;Step Next ▶&quot; or &quot;Auto Play&quot; to initialize variables and trace memory.
         </p>
       </div>
     );
@@ -41,131 +41,146 @@ export const MemoryCanvas: React.FC<MemoryCanvasProps> = ({ currentStep }) => {
     branchState,
     switchState,
     loopState,
-    callStack,
   } = currentStep;
 
-  return (
-    <div className="flex flex-col h-full bg-slate-50/70 rounded-3xl border border-slate-200/90 p-5 overflow-y-auto text-slate-800 shadow-xs space-y-6">
-      {/* Top Status & Call Stack Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-blue-700 rounded-full text-xs font-mono font-bold shadow-2xs">
-            <Layers className="w-3.5 h-3.5 text-blue-600" />
-            <span>Call Stack: {callStack.length > 0 ? callStack.join(' ➔ ') : 'Terminated (0)'}</span>
-          </div>
+  // Sort variables by hex address (Lowest address to Highest address)
+  const sortedByAddress = [...variables].sort((a, b) => {
+    const numA = parseInt(a.address, 16) || 0;
+    const numB = parseInt(b.address, 16) || 0;
+    return numA - numB;
+  });
 
-          <div className="px-2.5 py-1 bg-white border border-slate-200 text-emerald-700 rounded-full text-xs font-mono font-semibold shadow-2xs">
-            {variables.length + arrays.length + structures.length} Allocated Items
+  const getTypeColor = (type: string) => {
+    if (type.includes('*')) return { bg: 'bg-purple-100 text-purple-800 border-purple-200', block: 'bg-purple-50 border-purple-200 text-purple-950' };
+    if (type === 'int') return { bg: 'bg-blue-100 text-blue-800 border-blue-200', block: 'bg-blue-50/80 border-blue-200 text-blue-950' };
+    if (type === 'float') return { bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', block: 'bg-emerald-50/80 border-emerald-200 text-emerald-950' };
+    if (type === 'char') return { bg: 'bg-pink-100 text-pink-800 border-pink-200', block: 'bg-pink-50/80 border-pink-200 text-pink-950' };
+    if (type === 'double') return { bg: 'bg-indigo-100 text-indigo-800 border-indigo-200', block: 'bg-indigo-50/80 border-indigo-200 text-indigo-950' };
+    return { bg: 'bg-slate-100 text-slate-800 border-slate-200', block: 'bg-slate-50 border-slate-200 text-slate-900' };
+  };
+
+  return (
+    <div className="h-full flex flex-col justify-between gap-4 overflow-y-auto pr-1">
+      {/* 1. Variables (Stack Frame) Table Card */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
+        {/* Table Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-blue-600" />
+            <h4 className="text-xs font-bold text-slate-900">Variables (Stack Frame)</h4>
           </div>
+          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/70">
+            {variables.length} {variables.length === 1 ? 'variable' : 'variables'}
+          </span>
         </div>
 
-        {/* Dynamic Branch / Loop / Switch Indicators */}
-        {branchState && (
-          <div
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border ${
-              branchState.evaluatedTo
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-rose-50 border-rose-200 text-rose-800'
-            }`}
-          >
-            <GitBranch className="w-3.5 h-3.5" />
-            <span>
-              Condition ({branchState.condition}): {branchState.evaluatedTo ? 'TRUE' : 'FALSE'}
-            </span>
+        {/* Table Content */}
+        {variables.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-400 font-medium">
+            No scalar variables in stack frame yet.
           </div>
-        )}
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-[11px] font-semibold text-slate-400 border-b border-slate-100 pb-2">
+                  <th className="pb-2 font-medium">Name</th>
+                  <th className="pb-2 font-medium">Type</th>
+                  <th className="pb-2 font-medium">Size</th>
+                  <th className="pb-2 font-medium">Value (Live)</th>
+                  <th className="pb-2 font-medium">Memory Address</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-sans">
+                {variables.map((v) => {
+                  const colors = getTypeColor(v.type);
+                  const matchingLink = pointers.find((p) => p.fromVar === v.name);
 
-        {switchState && (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border bg-purple-50 border-purple-200 text-purple-800">
-            <CornerDownRight className="w-3.5 h-3.5" />
-            <span>Switch Match: {switchState.matchedCase}</span>
-          </div>
-        )}
+                  return (
+                    <tr
+                      key={v.name}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        v.highlight ? 'bg-blue-50/40' : ''
+                      }`}
+                    >
+                      {/* Name */}
+                      <td className="py-2.5 font-mono font-bold text-slate-900">
+                        {v.name}
+                      </td>
 
-        {loopState && (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border bg-amber-50 border-amber-200 text-amber-800">
-            <RotateCw className="w-3.5 h-3.5 animate-spin text-amber-700" />
-            <span>
-              Loop #{loopState.iteration}: {loopState.variableName} = {loopState.currentValue} (
-              {loopState.conditionMet ? 'Active' : 'Ended'})
-            </span>
+                      {/* Type Badge */}
+                      <td className="py-2.5">
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${colors.bg}`}
+                        >
+                          {v.type}
+                        </span>
+                      </td>
+
+                      {/* Size */}
+                      <td className="py-2.5 text-slate-500 font-mono text-[11px]">
+                        {v.byteSize} {v.byteSize === 1 ? 'byte' : 'bytes'}
+                      </td>
+
+                      {/* Value (Live) */}
+                      <td className="py-2.5">
+                        <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50/60 border border-blue-200/80 rounded-lg font-mono font-bold text-slate-950 text-xs shadow-2xs">
+                          <span>{String(v.value)}</span>
+                          {v.type === 'char' && typeof v.value === 'string' && (
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              ({v.value.charCodeAt(0) || 65})
+                            </span>
+                          )}
+                        </div>
+                        {matchingLink && (
+                          <div className="text-[10px] font-mono text-purple-700 mt-1 flex items-center gap-1">
+                            <ArrowRight className="w-3 h-3 text-purple-600" />
+                            <span>➔ {matchingLink.toVar}</span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Memory Address */}
+                      <td className="py-2.5 font-mono text-xs text-slate-600 font-medium">
+                        {v.address}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {/* Special Stack (LIFO) Frame Visualizer Widget */}
-      {stackItems && stackItems.length > 0 && (
-        <div className="p-4 bg-white border border-blue-200 rounded-2xl shadow-2xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-600" />
-              <h4 className="text-xs font-extrabold uppercase tracking-wider text-blue-950">
-                Active Call Stack Frame (LIFO - Last In, First Out)
-              </h4>
-            </div>
-            <span className="text-[11px] font-mono text-blue-600 font-bold">
-              Depth: {stackItems.length} Frame(s)
-            </span>
+      {/* 2. Visual View Block (Stack Memory / Pointers / Arrays / Queue / Structs) */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-blue-600" />
+            <h4 className="text-xs font-bold text-slate-900">
+              {queueItems && queueItems.length > 0
+                ? 'Queue Buffer Pipeline (FIFO)'
+                : arrays.length > 0
+                ? 'Array Contiguous Memory Layout'
+                : structures.length > 0
+                ? 'Structures (Packed Composite Records)'
+                : 'Stack Memory (Visual View)'}
+            </h4>
           </div>
-
-          <div className="flex flex-col-reverse gap-2 max-w-lg mx-auto bg-slate-50 p-3 rounded-xl border border-slate-200">
-            {stackItems.map((item, idx) => (
-              <motion.div
-                key={item.name}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-                  item.isTop
-                    ? 'bg-blue-600 text-white border-blue-700 shadow-sm font-bold'
-                    : 'bg-white text-slate-800 border-slate-200'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono">{item.name}</span>
-                  {item.isTop && (
-                    <span className="px-2 py-0.5 bg-white text-blue-800 text-[10px] font-black rounded-full uppercase tracking-wider animate-pulse">
-                      Top of Stack (TOS)
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-3 font-mono text-xs">
-                  <span className={`px-2 py-0.5 rounded text-xs ${item.isTop ? 'bg-blue-700 text-white font-extrabold' : 'bg-slate-100 text-slate-950 font-black'}`}>
-                    Val: {String(item.value)}
-                  </span>
-                  <span className={`text-[10px] ${item.isTop ? 'text-blue-100' : 'text-slate-400'}`}>
-                    {item.address}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
-            <div className="text-center text-[10px] text-slate-400 font-mono pt-1">
-              ▼ Stack Bottom (Fixed Base Frame)
-            </div>
-          </div>
+          <span className="text-[11px] font-mono text-slate-400 font-medium">
+            Low Address ➔ High Address
+          </span>
         </div>
-      )}
 
-      {/* Special Queue Buffer (FIFO) Visualizer Widget */}
-      {queueItems && queueItems.length > 0 && (
-        <div className="p-4 bg-white border border-emerald-200 rounded-2xl shadow-2xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-600" />
-              <h4 className="text-xs font-extrabold uppercase tracking-wider text-emerald-950">
-                Queue Buffer Pipeline (FIFO - First In, First Out)
-              </h4>
-            </div>
-            <span className="text-[11px] font-mono text-emerald-700 font-bold">
-              Sequential Task Queue
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-            {queueItems.map((q, idx) => (
+        {/* Content A: If Queue Buffer active */}
+        {queueItems && queueItems.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200">
+            {queueItems.map((q) => (
               <div
                 key={q.index}
-                className={`flex-1 min-w-[120px] p-3 rounded-xl border text-center transition-all ${
+                className={`flex-1 min-w-[100px] p-3 rounded-xl border text-center transition-all ${
                   q.status === 'dequeued'
                     ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-60 line-through'
                     : q.status === 'front'
@@ -173,201 +188,100 @@ export const MemoryCanvas: React.FC<MemoryCanvasProps> = ({ currentStep }) => {
                     : 'bg-white border-slate-200 text-slate-800'
                 }`}
               >
-                <div className="text-[10px] font-mono font-bold mb-1 flex items-center justify-center gap-1">
-                  {q.status === 'front' ? (
-                    <span className="text-emerald-700 uppercase font-black tracking-wider">
-                      ● Front Pointer
-                    </span>
-                  ) : q.status === 'dequeued' ? (
-                    <span className="text-slate-400 flex items-center gap-0.5">
-                      <CheckCircle2 className="w-3 h-3" /> Dequeued
-                    </span>
-                  ) : (
-                    <span className="text-slate-500">Slot [{q.index}]</span>
-                  )}
+                <div className="text-[10px] font-mono font-bold mb-0.5">
+                  {q.status === 'front' ? '● Front' : q.status === 'dequeued' ? 'Dequeued' : `[${q.index}]`}
                 </div>
-                <div className="text-lg font-black font-mono text-slate-950 my-1">
+                <div className="text-base font-black font-mono text-slate-950 my-0.5">
                   {q.value}
                 </div>
-                <div className="text-[10px] font-mono text-slate-500">
-                  {q.status === 'front' ? 'Next to be served' : q.status === 'dequeued' ? 'Ticket issued' : 'Enqueued in order'}
+                <div className="text-[9px] font-mono text-slate-500">
+                  {q.status === 'front' ? 'Served next' : 'Enqueued'}
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* 1. Stack Variables Grid */}
-      <div>
-        <div className="flex items-center justify-between mb-2.5">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-            <Box className="w-3.5 h-3.5 text-blue-600" />
-            <span>Stack Frame (Local Variables)</span>
-          </span>
-          <span className="text-[11px] font-mono text-slate-500">Auto LIFO Allocation</span>
-        </div>
-
-        {variables.length === 0 ? (
-          <div className="p-5 rounded-2xl border border-dashed border-slate-200 bg-white text-center text-xs text-slate-500">
-            No scalar variables allocated in stack frame yet.
+        ) : arrays.length > 0 ? (
+          /* Content B: If Contiguous Arrays active */
+          <div className="space-y-3">
+            {arrays.map((arr) => (
+              <div key={arr.name} className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="font-bold text-slate-900">{arr.name}[] ({arr.elements.length} elements)</span>
+                  <span className="text-slate-400 text-[11px]">Base: {arr.baseAddress}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {arr.elements.map((elem) => (
+                    <div
+                      key={elem.index}
+                      className="flex-1 min-w-[70px] bg-emerald-50/60 border border-emerald-200 rounded-xl p-2 text-center"
+                    >
+                      <div className="text-[10px] font-mono text-emerald-800 font-bold">[{elem.index}]</div>
+                      <div className="text-sm font-black font-mono text-slate-950 my-0.5">{elem.value}</div>
+                      <div className="text-[9px] font-mono text-slate-500">{elem.address}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : structures.length > 0 ? (
+          /* Content C: If Structs active */
+          <div className="space-y-3">
+            {structures.map((s) => (
+              <div key={s.name} className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="font-bold text-slate-900">struct {s.structType} {s.name}</span>
+                  <span className="text-slate-400 text-[11px]">Total: {s.totalSize} Bytes</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/80">
+                  {s.members.map((m) => (
+                    <div key={m.name} className="p-2 bg-white rounded-lg border border-amber-200/70">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono mb-0.5">
+                        <span className="font-bold text-amber-900">.{m.name}</span>
+                        <span>+{m.offset}B</span>
+                      </div>
+                      <div className="text-xs font-mono font-black text-slate-950">{String(m.value)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <AnimatePresence>
-              {variables.map((v) => {
-                const isPointer = v.type.includes('*');
-                const matchingLink = pointers.find((p) => p.fromVar === v.name);
-
+          /* Content D: Standard Contiguous Stack Memory Cells ordered Low -> High Address */
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {sortedByAddress.length === 0 ? (
+              <div className="col-span-4 py-4 text-center text-xs text-slate-400 font-medium">
+                No active memory cells allocated.
+              </div>
+            ) : (
+              sortedByAddress.map((v) => {
+                const colors = getTypeColor(v.type);
                 return (
                   <motion.div
                     key={v.name}
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.2 }}
-                    className={`relative p-3.5 rounded-2xl border transition-all ${
-                      v.highlight
-                        ? 'bg-blue-50/50 border-blue-400 ring-2 ring-blue-400/20 shadow-xs'
-                        : 'bg-white border-slate-200/90 shadow-2xs'
+                    className={`p-3 rounded-xl border text-center transition-all ${colors.block} ${
+                      v.highlight ? 'ring-2 ring-blue-400/40 shadow-xs' : 'shadow-2xs'
                     }`}
                   >
-                    {/* Header: Name + Type Badge */}
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold font-mono text-slate-900">{v.name}</span>
-                        <span
-                          className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${
-                            isPointer ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {v.type} ({v.byteSize}B)
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                        {v.address}
-                      </span>
+                    <div className="font-mono font-bold text-xs text-slate-950 truncate">
+                      {v.name}
                     </div>
-
-                    {/* Value Body */}
-                    <div className="bg-slate-100/80 px-3 py-2 rounded-xl border border-slate-200 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-500 font-mono">Value:</span>
-                      <span className="font-mono text-sm font-black text-slate-950">
-                        {String(v.value)}
-                      </span>
+                    <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                      {v.byteSize} {v.byteSize === 1 ? 'byte' : 'bytes'}
                     </div>
-
-                    {/* Pointer Link Indicator */}
-                    {matchingLink && (
-                      <div className="mt-2 text-[10px] font-mono text-purple-900 bg-purple-50 p-2 rounded-xl border border-purple-200 flex items-center gap-1.5">
-                        <ArrowRight className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                        <span>
-                          Points to <strong>&apos;{matchingLink.toVar}&apos;</strong> ({matchingLink.toAddress})
-                        </span>
-                      </div>
-                    )}
+                    <div className="text-[10px] font-mono text-slate-600 font-bold mt-1 bg-white/80 rounded py-0.5 border border-slate-200/60">
+                      {v.address}
+                    </div>
                   </motion.div>
                 );
-              })}
-            </AnimatePresence>
+              })
+            )}
           </div>
         )}
       </div>
-
-      {/* 2. Contiguous Arrays Section */}
-      {arrays.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Contiguous Arrays (Indexed Memory)</span>
-            </span>
-            <span className="text-[11px] font-mono text-slate-500">Linear Index Mapping</span>
-          </div>
-
-          <div className="space-y-4">
-            {arrays.map((arr) => (
-              <div key={arr.name} className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
-                <div className="flex items-center justify-between mb-3 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-slate-900 text-sm">{arr.name}[]</span>
-                    <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
-                      {arr.type} • {arr.elements.length} Elements ({arr.elements.length * arr.elementSize} Bytes)
-                    </span>
-                  </div>
-                  <span className="font-mono text-slate-500 text-[11px]">Base: {arr.baseAddress}</span>
-                </div>
-
-                {/* Array Cells Grid */}
-                <div className="flex flex-wrap gap-2">
-                  {arr.elements.map((elem) => (
-                    <div
-                      key={elem.index}
-                      className="flex-1 min-w-[75px] bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center shadow-2xs"
-                    >
-                      <div className="text-[10px] font-mono text-slate-500 mb-0.5 font-bold">
-                        [{elem.index}]
-                      </div>
-                      <div className="text-sm font-black font-mono text-slate-950 my-1">
-                        {elem.value}
-                      </div>
-                      <div className="text-[9px] font-mono text-indigo-700 font-semibold bg-indigo-50/70 rounded py-0.5 border border-indigo-100/60">
-                        {elem.address}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 3. Structures (struct) Section */}
-      {structures.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-amber-600" />
-              <span>Structures (Composite Packed Records)</span>
-            </span>
-            <span className="text-[11px] font-mono text-slate-500">Struct Offset Pack</span>
-          </div>
-
-          <div className="space-y-3">
-            {structures.map((s) => (
-              <div key={s.name} className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
-                <div className="flex items-center justify-between mb-3 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-slate-900">
-                      struct {s.structType} {s.name}
-                    </span>
-                    <span className="text-[10px] font-mono bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">
-                      Total: {s.totalSize} Bytes
-                    </span>
-                  </div>
-                  <span className="font-mono text-slate-500 text-[11px]">{s.baseAddress}</span>
-                </div>
-
-                {/* Member Fields Table */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                  {s.members.map((m) => (
-                    <div key={m.name} className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono mb-1">
-                        <span className="font-bold text-slate-700">.{m.name}</span>
-                        <span className="text-slate-400">+{m.offset}B</span>
-                      </div>
-                      <div className="text-xs font-mono font-black text-slate-950">
-                        {String(m.value)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
-
