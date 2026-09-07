@@ -67,22 +67,53 @@ CREATE POLICY "Allow upserting live code state for classroom sessions"
     WITH CHECK (true);
 
 -- 7. Seed default instructor profile and live session so foreign key constraints succeed
-INSERT INTO public.profiles (id, email, role, name, created_at)
-VALUES (
-    '00000000-0000-0000-0000-000000000000',
-    'tungariyarahul08@gmail.com',
-    'admin',
-    'Rahul Tungariya (Instructor)',
-    NOW()
-) ON CONFLICT (id) DO UPDATE SET role = 'admin';
+DO $$
+DECLARE
+    teacher_uuid UUID;
+BEGIN
+    -- Look up existing profile id for tungariyarahul08@gmail.com
+    SELECT id INTO teacher_uuid 
+    FROM public.profiles 
+    WHERE LOWER(email) = 'tungariyarahul08@gmail.com' 
+    LIMIT 1;
 
-INSERT INTO public.class_sessions (id, title, description, status, teacher_id, started_at, created_at)
-VALUES (
-    '00000000-0000-0000-0000-000000000001',
-    'Introduction to C Programming: Basics, Syntax and Your First Program',
-    'Master variables, memory concepts, GCC compilation flags, and write your first Hello World in C.',
-    'live',
-    '00000000-0000-0000-0000-000000000000',
-    NOW(),
-    NOW()
-) ON CONFLICT (id) DO UPDATE SET status = 'live';
+    -- If no profile exists yet in public.profiles, check auth.users or use fallback
+    IF teacher_uuid IS NULL THEN
+        SELECT id INTO teacher_uuid 
+        FROM auth.users 
+        WHERE LOWER(email) = 'tungariyarahul08@gmail.com' 
+        LIMIT 1;
+
+        IF teacher_uuid IS NULL THEN
+            teacher_uuid := '00000000-0000-0000-0000-000000000000';
+        END IF;
+
+        INSERT INTO public.profiles (id, email, role, name, created_at)
+        VALUES (
+            teacher_uuid,
+            'tungariyarahul08@gmail.com',
+            'admin',
+            'Rahul Tungariya (Instructor)',
+            NOW()
+        )
+        ON CONFLICT (email) DO UPDATE 
+        SET role = 'admin', name = EXCLUDED.name;
+    ELSE
+        -- Ensure existing profile has admin role
+        UPDATE public.profiles SET role = 'admin' WHERE id = teacher_uuid;
+    END IF;
+
+    -- Seed default live classroom session with resolved teacher_uuid
+    INSERT INTO public.class_sessions (id, title, description, status, teacher_id, started_at, created_at)
+    VALUES (
+        '00000000-0000-0000-0000-000000000001',
+        'Introduction to C Programming: Basics, Syntax and Your First Program',
+        'Master variables, memory concepts, GCC compilation flags, and write your first Hello World in C.',
+        'live',
+        teacher_uuid,
+        NOW(),
+        NOW()
+    )
+    ON CONFLICT (id) DO UPDATE 
+    SET teacher_id = teacher_uuid, status = 'live';
+END $$;
