@@ -1,44 +1,50 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { useSessionStore } from '../stores/sessionStore';
+import { useEditorStore } from '../stores/editorStore';
+import { useClassroomStore } from '../stores/classroomStore';
 import { useAuthStore } from '../stores/authStore';
 import { ClassroomRealtimeMessage, CodeBroadcastPayload, CursorTelemetryPayload, ExecutionBroadcastPayload } from '../types/realtime';
 import { Doubt, Task } from '../types/database';
 import { EnhancedExecutionResult } from '../lib/judge0';
 
 export function useRealtimeSession(sessionId: string) {
-  const {
-    setLiveCode,
-    setCursorPosition,
-    setOnlineCount,
-    setIsTeacherLive,
-    addDoubt,
-    resolveDoubt,
-    addTask,
-    setTeacherExecution,
-    setIsTeacherRunning,
-  } = useSessionStore();
+  // Stable action selectors: Never causes re-render when state changes
+  const setLiveCode = useEditorStore((s) => s.setLiveCode);
+  const setCursorPosition = useEditorStore((s) => s.setCursorPosition);
+  const setIsTeacherLive = useEditorStore((s) => s.setIsTeacherLive);
+  const setTeacherExecution = useEditorStore((s) => s.setTeacherExecution);
+  const setIsTeacherRunning = useEditorStore((s) => s.setIsTeacherRunning);
+
+  const setOnlineCount = useClassroomStore((s) => s.setOnlineCount);
+  const addDoubt = useClassroomStore((s) => s.addDoubt);
+  const resolveDoubt = useClassroomStore((s) => s.resolveDoubt);
+  const addTask = useClassroomStore((s) => s.addTask);
 
   const { user, profile, isAdmin } = useAuthStore();
   const channelRef = useRef<any>(null);
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
-  const debounceTimerRef = useRef<any>(null);
-  const cursorTelemetryTimerRef = useRef<any>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cursorTelemetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBroadcastCursorRef = useRef<{ lineNumber: number; column: number } | null>(null);
+  const lastBroadcastCodeRef = useRef<string>('');
 
   // Setup Realtime Synchronization:
   // 1. HTML5 BroadcastChannel: Ultra-fast local & cross-tab sync (<2ms)
-  // 2. Storage Event Listener: Synchronous reload / tab backup
+  // 2. Storage Event Listener: Fallback ONLY if BroadcastChannel is unsupported
   // 3. Supabase Realtime Channel: Multi-user remote broadcasting across networks
   useEffect(() => {
     if (!sessionId) return;
 
-    // 1. Initialize HTML5 BroadcastChannel for instantaneous cross-tab sync
-    const bcName = `codeclass_session_${sessionId}`;
     let bc: BroadcastChannel | null = null;
+    let hasNativeBroadcastChannel = false;
+
+    // 1. Initialize HTML5 BroadcastChannel for instantaneous cross-tab sync
     try {
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const bcName = `codeclass_session_${sessionId}`;
         bc = new BroadcastChannel(bcName);
         broadcastChannelRef.current = bc;
+        hasNativeBroadcastChannel = true;
 
         bc.onmessage = (event) => {
           const payload = event.data;
@@ -84,27 +90,24 @@ export function useRealtimeSession(sessionId: string) {
       console.warn('BroadcastChannel initialization fallback:', e);
     }
 
-    // 2. Local Storage Event Listener (secondary cross-tab sync fallback)
+    // 2. Storage Event Listener: ONLY active as fallback if BroadcastChannel is unsupported
+    // Eliminates duplicate event loops and redundant disk reads
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === `codeclass_live_code_${sessionId}` || e.key === 'codeclass_live_code_global') {
-        if (e.newValue && e.newValue !== useSessionStore.getState().liveCode) {
-          setLiveCode(e.newValue);
+      if (!hasNativeBroadcastChannel) {
+        if (e.key === `codeclass_live_code_${sessionId}` || e.key === 'codeclass_live_code_global') {
+          if (e.newValue && e.newValue !== useEditorStore.getState().liveCode) {
+            setLiveCode(e.newValue);
+          }
         }
       }
     };
-    window.addEventListener('storage', handleStorageChange);
 
-    // 3. Hydrate immediately from localStorage on component mount
+    if (!hasNativeBroadcastChannel) {
+      window.addEventListener('storage', handleStorageChange);
+    }
+
+    // 3. Hydrate initial snapshot from Supabase table for late-joiners
     const fetchInitialSnapshot = async () => {
-      try {
-        const localCode = localStorage.getItem(`codeclass_live_code_${sessionId}`) ||
-                          localStorage.getItem('codeclass_live_code_global');
-        if (localCode && localCode.trim()) {
-          setLiveCode(localCode);
-        }
-      } catch (e) {}
-
-      // Fetch initial live code snapshot from Supabase table for remote late-joiners
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
       if (!isUUID || !isSupabaseConfigured) return;
 
@@ -116,11 +119,7 @@ export function useRealtimeSession(sessionId: string) {
           .maybeSingle();
 
         if (data?.code && !error) {
-          setLiveCode(data.code);
-          try {
-            localStorage.setItem(`codeclass_live_code_${sessionId}`, data.code);
-            localStorage.setItem('codeclass_live_code_global', data.code);
-          } catch (e) {}
+          setLiveCode(data.code, true);
         }
       } catch (err) {
         console.warn('Could not fetch snapshot buffer:', err);
@@ -138,7 +137,9 @@ export function useRealtimeSession(sessionId: string) {
           bc.close();
           broadcastChannelRef.current = null;
         }
-        window.removeEventListener('storage', handleStorageChange);
+        if (!hasNativeBroadcastChannel) {
+          window.removeEventListener('storage', handleStorageChange);
+        }
       };
     }
 
@@ -154,7 +155,6 @@ export function useRealtimeSession(sessionId: string) {
     channel.on('broadcast', { event: 'classroom_message' }, ({ payload }: { payload: ClassroomRealtimeMessage }) => {
       switch (payload.type) {
         case 'code_broadcast': {
-          // Update store directly without requestAnimationFrame delay (to support background tabs)
           setLiveCode(payload.code);
           if (payload.cursor) {
             setCursorPosition(payload.cursor);
@@ -210,7 +210,6 @@ export function useRealtimeSession(sessionId: string) {
         setOnlineCount(Math.max(Object.keys(presenceState).length, 1));
       });
 
-    // Subscribe to channel and track presence
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await channel.track({
@@ -231,21 +230,23 @@ export function useRealtimeSession(sessionId: string) {
         bc.close();
         broadcastChannelRef.current = null;
       }
-      window.removeEventListener('storage', handleStorageChange);
+      if (!hasNativeBroadcastChannel) {
+        window.removeEventListener('storage', handleStorageChange);
+      }
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       if (cursorTelemetryTimerRef.current) clearTimeout(cursorTelemetryTimerRef.current);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [sessionId, user?.id, isAdmin, profile?.name, profile?.avatar_url, user?.email]);
+  }, [sessionId, user?.id, isAdmin, profile?.name, profile?.avatar_url, user?.email, setLiveCode, setCursorPosition, setIsTeacherLive, setTeacherExecution, setIsTeacherRunning, setOnlineCount, addDoubt, resolveDoubt, addTask]);
 
-  // Teacher Broadcast Code: Instant local & BroadcastChannel + Debounced 150ms network
+  // Tick-Rate Collaborative Netcode: 100ms batched broadcasts
   const broadcastCode = useCallback((code: string, cursor?: { lineNumber: number; column: number }) => {
-    // 1. Immediately update local store
+    // 1. Update in-memory store (asynchronously queues debounced disk write)
     setLiveCode(code);
 
-    // 2. Instantly broadcast across local tabs/windows (<2ms)
+    // 2. Broadcast immediately to local tabs via BroadcastChannel (<2ms)
     if (broadcastChannelRef.current) {
       try {
         broadcastChannelRef.current.postMessage({
@@ -258,18 +259,15 @@ export function useRealtimeSession(sessionId: string) {
       } catch (e) {}
     }
 
-    // 3. Immediately persist to localStorage for instant reload / hard refresh persistence
-    try {
-      localStorage.setItem(`codeclass_live_code_${sessionId}`, code);
-      localStorage.setItem('codeclass_live_code_global', code);
-    } catch (e) {}
-
-    // 4. Debounce remote network broadcast (150ms)
+    // 3. Debounce remote network broadcast to ~100ms ticks (10Hz tick rate budget)
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
     debounceTimerRef.current = setTimeout(async () => {
+      if (code === lastBroadcastCodeRef.current) return;
+      lastBroadcastCodeRef.current = code;
+
       const payload: CodeBroadcastPayload = {
         type: 'code_broadcast',
         code,
@@ -286,7 +284,7 @@ export function useRealtimeSession(sessionId: string) {
         });
       }
 
-      // Upsert into live_code_state for remote late-joiners
+      // Upsert into live_code_state for late-joiners
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
       if (isSupabaseConfigured && isUUID) {
         try {
@@ -298,15 +296,23 @@ export function useRealtimeSession(sessionId: string) {
               language_id: 50,
               updated_at: new Date().toISOString(),
             });
-        } catch (err) {
-          // Graceful fallback if RLS or foreign key is not yet migrated
-        }
+        } catch (err) {}
       }
-    }, 150);
+    }, 100);
   }, [sessionId, setLiveCode]);
 
-  // Teacher Broadcast Cursor Telemetry (Throttled to 80ms)
+  // Delta-Checked Cursor Telemetry (Throttled to 100ms)
   const broadcastCursor = useCallback((cursor: { lineNumber: number; column: number }) => {
+    // Skip if cursor hasn't actually moved
+    if (
+      lastBroadcastCursorRef.current &&
+      lastBroadcastCursorRef.current.lineNumber === cursor.lineNumber &&
+      lastBroadcastCursorRef.current.column === cursor.column
+    ) {
+      return;
+    }
+    lastBroadcastCursorRef.current = cursor;
+
     setCursorPosition(cursor);
 
     if (broadcastChannelRef.current) {
@@ -337,7 +343,7 @@ export function useRealtimeSession(sessionId: string) {
           payload,
         });
       }
-    }, 80);
+    }, 100);
   }, [setCursorPosition]);
 
   // Broadcast Doubt Event
@@ -390,7 +396,7 @@ export function useRealtimeSession(sessionId: string) {
     }
   }, [addTask]);
 
-  // Broadcast Code Execution Event (syncs terminal & stdin live across classroom)
+  // Broadcast Code Execution Event
   const broadcastExecution = useCallback(
     (output: EnhancedExecutionResult | null, stdin: string, isRunning: boolean) => {
       setTeacherExecution(output, stdin);

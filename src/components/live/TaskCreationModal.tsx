@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus, Sparkles } from 'lucide-react';
 import { Task } from '../../types/database';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useClassroomStore } from '../../stores/classroomStore';
 
 interface TaskCreationModalProps {
   isOpen: boolean;
@@ -14,7 +14,8 @@ export const TaskCreationModal: React.FC<TaskCreationModalProps> = ({
   onClose,
   onTaskCreated,
 }) => {
-  const { currentSession, addTask } = useSessionStore();
+  const currentSession = useClassroomStore((s) => s.currentSession);
+  const addTask = useClassroomStore((s) => s.addTask);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [initialCode, setInitialCode] = useState(`#include <stdio.h>
@@ -49,7 +50,7 @@ int main() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 animate-in fade-in duration-200">
       <div 
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 space-y-5"

@@ -1,33 +1,41 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import { Eye, Copy, Check, Users } from 'lucide-react';
-import { useSessionStore } from '../../stores/sessionStore';
-
-const MONACO_STUDENT_OPTIONS = {
-  readOnly: true,
-  fontSize: 14,
-  fontFamily: "'JetBrains Mono', monospace",
-  minimap: { enabled: true, side: 'right' as const },
-  lineNumbers: 'on' as const,
-  automaticLayout: true,
-  scrollBeyondLastLine: false,
-  tabSize: 4,
-  padding: { top: 16, bottom: 16 },
-  renderLineHighlight: 'all' as const,
-  cursorBlinking: 'blink' as const,
-  cursorSmoothCaretAnimation: 'on' as const,
-  wordWrap: 'on' as const,
-  smoothScrolling: true,
-};
+import { useEditorStore } from '../../stores/editorStore';
+import { useClassroomStore } from '../../stores/classroomStore';
+import { usePerformanceStore } from '../../stores/performanceStore';
 
 export const StudentLiveViewer: React.FC = () => {
-  const { liveCode, cursorPosition, onlineCount } = useSessionStore();
+  // Granular atomic selectors: Prevents re-renders from unrelated store state
+  const liveCode = useEditorStore((s) => s.liveCode);
+  const cursorPosition = useEditorStore((s) => s.cursorPosition);
+  const onlineCount = useClassroomStore((s) => s.onlineCount);
+  const isLiteMode = usePerformanceStore((s) => s.isLiteMode);
+
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const decorationsRef = useRef<string[]>([]);
   const [followTeacher, setFollowTeacher] = useState<boolean>(true);
   const [copied, setCopied] = useState<boolean>(false);
   const [isEditorReady, setIsEditorReady] = useState<boolean>(false);
+
+  // Dynamic Game-Dev Monaco Options based on device capability / Lite Mode
+  const monacoOptions = useMemo(() => ({
+    readOnly: true,
+    fontSize: 14,
+    fontFamily: "'JetBrains Mono', monospace",
+    minimap: { enabled: !isLiteMode, side: 'right' as const },
+    lineNumbers: 'on' as const,
+    automaticLayout: true,
+    scrollBeyondLastLine: false,
+    tabSize: 4,
+    padding: { top: 16, bottom: 16 },
+    renderLineHighlight: 'all' as const,
+    cursorBlinking: isLiteMode ? ('solid' as const) : ('blink' as const),
+    cursorSmoothCaretAnimation: isLiteMode ? ('off' as const) : ('on' as const),
+    wordWrap: 'on' as const,
+    smoothScrolling: !isLiteMode,
+  }), [isLiteMode]);
 
   const handleEditorDidMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
@@ -51,6 +59,7 @@ export const StudentLiveViewer: React.FC = () => {
         const currentScroll = editorRef.current.getScrollTop();
         const currentPosition = editorRef.current.getPosition();
 
+        // Preserves syntax tokens and minimizes layout thrashing
         model.setValue(liveCode);
 
         if (currentPosition) {
@@ -68,11 +77,10 @@ export const StudentLiveViewer: React.FC = () => {
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current || !cursorPosition) return;
 
-    requestAnimationFrame(() => {
+    const animFrame = requestAnimationFrame(() => {
       try {
         const line = cursorPosition.lineNumber;
 
-        // Apply visual line decoration for teacher's active position
         decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, [
           {
             range: new monacoRef.current.Range(line, 1, line, 1),
@@ -88,11 +96,22 @@ export const StudentLiveViewer: React.FC = () => {
         if (followTeacher) {
           editorRef.current.revealLineInCenterIfOutsideViewport(line);
         }
-      } catch (e) {
-        // Line out of bounds guard
-      }
+      } catch (e) {}
     });
+
+    return () => cancelAnimationFrame(animFrame);
   }, [cursorPosition, followTeacher]);
+
+  // Clean up decorations on unmount
+  useEffect(() => {
+    return () => {
+      if (editorRef.current && decorationsRef.current.length > 0) {
+        try {
+          editorRef.current.deltaDecorations(decorationsRef.current, []);
+        } catch {}
+      }
+    };
+  }, []);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(liveCode);
@@ -147,7 +166,7 @@ export const StudentLiveViewer: React.FC = () => {
       <div className="flex-1 w-full relative bg-[#1E1E1E] overflow-hidden">
         {/* Floating Teacher Ghost Cursor Tag */}
         {cursorPosition && (
-          <div className="absolute top-3 right-5 z-20 pointer-events-none flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600/90 text-white text-[11px] font-mono shadow-md backdrop-blur-xs">
+          <div className="absolute top-3 right-5 z-20 pointer-events-none flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600 text-white text-[11px] font-mono shadow-md">
             <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <span>Teacher at Line {cursorPosition.lineNumber}:{cursorPosition.column}</span>
           </div>
@@ -157,10 +176,10 @@ export const StudentLiveViewer: React.FC = () => {
           height="100%"
           width="100%"
           language="c"
-          value={liveCode}
+          defaultValue={liveCode}
           onMount={handleEditorDidMount}
           theme="vs-dark"
-          options={MONACO_STUDENT_OPTIONS}
+          options={monacoOptions}
         />
 
         {!isEditorReady && liveCode && (

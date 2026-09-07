@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import { Play, Terminal, Users, RefreshCw, ChevronUp, ChevronDown, CornerDownLeft } from 'lucide-react';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useEditorStore } from '../../stores/editorStore';
+import { useClassroomStore } from '../../stores/classroomStore';
+import { usePerformanceStore } from '../../stores/performanceStore';
 import { executeCodeOnJudge0, EnhancedExecutionResult } from '../../lib/judge0';
 
 interface TeacherLiveEditorProps {
@@ -10,36 +12,37 @@ interface TeacherLiveEditorProps {
   onBroadcastExecution?: (output: EnhancedExecutionResult | null, stdin: string, isRunning: boolean) => void;
 }
 
-const MONACO_TEACHER_OPTIONS = {
-  fontSize: 14,
-  fontFamily: "'JetBrains Mono', monospace",
-  minimap: { enabled: true, side: 'right' as const },
-  lineNumbers: 'on' as const,
-  automaticLayout: true,
-  scrollBeyondLastLine: false,
-  tabSize: 4,
-  padding: { top: 14, bottom: 14 },
-  renderLineHighlight: 'all' as const,
-  cursorBlinking: 'blink' as const,
-  cursorSmoothCaretAnimation: 'on' as const,
-  cursorStyle: 'line' as const,
-  cursorWidth: 2,
-  wordWrap: 'on' as const,
-  smoothScrolling: true,
-};
-
 export const TeacherLiveEditor: React.FC<TeacherLiveEditorProps> = ({
   onBroadcastCode,
   onBroadcastCursor,
   onBroadcastExecution,
 }) => {
-  const onlineCount = useSessionStore((state) => state.onlineCount);
-  const initialCode = useRef(useSessionStore.getState().liveCode);
+  const onlineCount = useClassroomStore((state) => state.onlineCount);
+  const initialCode = useRef(useEditorStore.getState().liveCode);
+  const isLiteMode = usePerformanceStore((state) => state.isLiteMode);
   const [isRunning, setIsRunning] = useState(false);
   const [activeBottomTab, setActiveBottomTab] = useState<'input' | 'output'>('output');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [customStdin, setCustomStdin] = useState('');
   const [executionResult, setExecutionResult] = useState<EnhancedExecutionResult | null>(null);
+
+  const monacoOptions = useMemo(() => ({
+    fontSize: 14,
+    fontFamily: "'JetBrains Mono', monospace",
+    minimap: { enabled: !isLiteMode, side: 'right' as const },
+    lineNumbers: 'on' as const,
+    automaticLayout: true,
+    scrollBeyondLastLine: false,
+    tabSize: 4,
+    padding: { top: 14, bottom: 14 },
+    renderLineHighlight: 'all' as const,
+    cursorBlinking: isLiteMode ? ('solid' as const) : ('blink' as const),
+    cursorSmoothCaretAnimation: isLiteMode ? ('off' as const) : ('on' as const),
+    cursorStyle: 'line' as const,
+    cursorWidth: 2,
+    wordWrap: 'on' as const,
+    smoothScrolling: !isLiteMode,
+  }), [isLiteMode]);
 
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
@@ -67,7 +70,7 @@ export const TeacherLiveEditor: React.FC<TeacherLiveEditorProps> = ({
       handleRunCode();
     });
 
-    const codeToLoad = useSessionStore.getState().liveCode || initialCode.current;
+    const codeToLoad = useEditorStore.getState().liveCode || initialCode.current;
     if (codeToLoad) {
       editor.setValue(codeToLoad);
     }
@@ -199,7 +202,7 @@ export const TeacherLiveEditor: React.FC<TeacherLiveEditorProps> = ({
           onChange={handleCodeChange}
           onMount={handleEditorDidMount}
           theme="vs-dark"
-          options={MONACO_TEACHER_OPTIONS}
+          options={monacoOptions}
         />
 
         {/* Expandable Integrated Stdin & Output Bottom Drawer */}

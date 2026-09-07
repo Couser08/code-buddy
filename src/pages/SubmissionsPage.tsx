@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { useSessionStore } from '../stores/sessionStore';
+import { useClassroomStore } from '../stores/classroomStore';
 import { useAuthStore } from '../stores/authStore';
 import { TaskSubmissionModal } from '../components/live/TaskSubmissionModal';
 import { Submission, Task } from '../types/database';
 import { CheckSquare, Star, Clock, FileCode, CheckCircle, ChevronRight, User } from 'lucide-react';
 
 export const SubmissionsPage: React.FC = () => {
-  const { submissions, tasks } = useSessionStore();
+  const submissions = useClassroomStore((s) => s.submissions);
+  const tasks = useClassroomStore((s) => s.tasks);
   const { isAdmin, user } = useAuthStore();
   const [activeTaskToReview, setActiveTaskToReview] = useState<Task | null>(null);
 

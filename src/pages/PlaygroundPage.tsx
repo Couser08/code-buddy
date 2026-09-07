@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import { SplitOutputPanel } from '../components/live/SplitOutputPanel';
 import { executeCodeOnJudge0, EnhancedExecutionResult } from '../lib/judge0';
+import { usePerformanceStore } from '../stores/performanceStore';
 import {
   Code2,
   Play,
@@ -119,24 +120,8 @@ int main() {
   },
 };
 
-const MONACO_PLAYGROUND_OPTIONS = {
-  fontSize: 14,
-  fontFamily: "'JetBrains Mono', monospace",
-  minimap: { enabled: true, side: 'right' as const },
-  lineNumbers: 'on' as const,
-  automaticLayout: true,
-  tabSize: 4,
-  padding: { top: 14, bottom: 14 },
-  renderLineHighlight: 'all' as const,
-  cursorBlinking: 'blink' as const,
-  cursorSmoothCaretAnimation: 'on' as const,
-  cursorStyle: 'line' as const,
-  cursorWidth: 2,
-  wordWrap: 'on' as const,
-  smoothScrolling: true,
-};
-
 export const PlaygroundPage: React.FC = () => {
+  const isLiteMode = usePerformanceStore((s) => s.isLiteMode);
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>('hello');
   const [code, setCode] = useState<string>(STARTER_TEMPLATES['hello'].code);
   const codeRef = useRef<string>(STARTER_TEMPLATES['hello'].code);
@@ -144,6 +129,23 @@ export const PlaygroundPage: React.FC = () => {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [output, setOutput] = useState<EnhancedExecutionResult | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
+
+  const monacoOptions = useMemo(() => ({
+    fontSize: 14,
+    fontFamily: "'JetBrains Mono', monospace",
+    minimap: { enabled: !isLiteMode, side: 'right' as const },
+    lineNumbers: 'on' as const,
+    automaticLayout: true,
+    tabSize: 4,
+    padding: { top: 14, bottom: 14 },
+    renderLineHighlight: 'all' as const,
+    cursorBlinking: isLiteMode ? ('solid' as const) : ('blink' as const),
+    cursorSmoothCaretAnimation: isLiteMode ? ('off' as const) : ('on' as const),
+    cursorStyle: 'line' as const,
+    cursorWidth: 2,
+    wordWrap: 'on' as const,
+    smoothScrolling: !isLiteMode,
+  }), [isLiteMode]);
 
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
@@ -314,7 +316,7 @@ export const PlaygroundPage: React.FC = () => {
               onChange={handleCodeChange}
               onMount={handleEditorDidMount}
               theme="vs-dark"
-              options={MONACO_PLAYGROUND_OPTIONS}
+              options={monacoOptions}
             />
           </div>
         </div>

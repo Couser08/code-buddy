@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSessionStore } from '../stores/sessionStore';
+import { useClassroomStore } from '../stores/classroomStore';
 import { useAuthStore } from '../stores/authStore';
 import { TaskSubmissionModal } from '../components/live/TaskSubmissionModal';
 import { TaskCreationModal } from '../components/live/TaskCreationModal';
@@ -7,7 +7,8 @@ import { Task } from '../types/database';
 import { Plus, FileCode2, CheckCircle2, Clock, ChevronRight, Sparkles } from 'lucide-react';
 
 export const TasksPage: React.FC = () => {
-  const { tasks, submissions } = useSessionStore();
+  const tasks = useClassroomStore((s) => s.tasks);
+  const submissions = useClassroomStore((s) => s.submissions);
   const { isAdmin, user } = useAuthStore();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);

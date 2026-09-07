@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { MessageSquarePlus, CheckCircle2, MessageCircle, Clock, Check, Send } from 'lucide-react';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useClassroomStore } from '../../stores/classroomStore';
 import { useAuthStore } from '../../stores/authStore';
 import { Doubt } from '../../types/database';
 
@@ -13,17 +13,20 @@ export const DoubtQueuePanel: React.FC<DoubtQueuePanelProps> = ({
   onOpenAskModal,
   onBroadcastDoubtEvent,
 }) => {
-  const { doubts, resolveDoubt } = useSessionStore();
+  const doubts = useClassroomStore((s) => s.doubts);
+  const resolveDoubt = useClassroomStore((s) => s.resolveDoubt);
   const { isAdmin } = useAuthStore();
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
 
-  // Unresolved doubts first, sorted by created_at
-  const sortedDoubts = [...doubts].sort((a, b) => {
-    if (a.status === 'open' && b.status === 'resolved') return -1;
-    if (a.status === 'resolved' && b.status === 'open') return 1;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+  // Unresolved doubts first, sorted by created_at (Memoized to eliminate re-sort cycles)
+  const sortedDoubts = useMemo(() => {
+    return [...doubts].sort((a, b) => {
+      if (a.status === 'open' && b.status === 'resolved') return -1;
+      if (a.status === 'resolved' && b.status === 'open') return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [doubts]);
 
   const handleResolve = (doubt: Doubt) => {
     const replyText = replyInputs[doubt.id] || doubt.admin_reply || 'Resolved by Instructor';

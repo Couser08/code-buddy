@@ -19,7 +19,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useClassroomStore } from '../../stores/classroomStore';
 
 interface SidebarProps {
   onOpenQuickDoubt?: () => void;
@@ -29,7 +29,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenQuickDoubt, onOpenAuth }) => {
   const navigate = useNavigate();
   const { user, profile, isAdmin, signOut } = useAuthStore();
-  const { doubts } = useSessionStore();
+  const openDoubtsCount = useClassroomStore((s) => s.doubts.filter((d) => d.status === 'open').length);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
@@ -48,8 +48,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenQuickDoubt, onOpenAuth }
       return next;
     });
   };
-
-  const openDoubtsCount = doubts.filter((d) => d.status === 'open').length;
 
   const navItems = [
     { name: 'Home', href: '/', icon: Home },

@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Calendar } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 export const HeroBanner: React.FC = () => {
   const navigate = useNavigate();
@@ -69,23 +68,18 @@ export const HeroBanner: React.FC = () => {
             </svg>
           </div>
 
-          {/* Floating 3D 'C' Emblem Cube */}
-          <motion.div
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute top-2 right-12 z-20 w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 p-0.5 shadow-xl shadow-blue-500/25 flex items-center justify-center"
+          {/* Floating 3D 'C' Emblem Cube (GPU-Composited Keyframe) */}
+          <div
+            className="animate-float absolute top-2 right-12 z-20 w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 p-0.5 shadow-xl shadow-blue-500/25 flex items-center justify-center pointer-events-none"
           >
             <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white font-black text-3xl tracking-tight shadow-inner">
               C
             </div>
-          </motion.div>
+          </div>
 
-          {/* Isometric Floating Code Card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="w-full max-w-sm bg-white/95 rounded-2xl border border-slate-200/90 p-5 shadow-xl shadow-slate-200/50 relative z-10 backdrop-blur-sm"
+          {/* Isometric Code Card */}
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xl shadow-slate-200/50 relative z-10"
           >
             {/* Window Top Controls */}
             <div className="flex items-center gap-1.5 pb-3 border-b border-slate-100 mb-3">
@@ -107,7 +101,7 @@ export const HeroBanner: React.FC = () => {
               </p>
               <p>&#125;</p>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

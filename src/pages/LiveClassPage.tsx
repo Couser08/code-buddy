@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useSessionStore } from '../stores/sessionStore';
+import { useEditorStore } from '../stores/editorStore';
+import { useClassroomStore } from '../stores/classroomStore';
 import { useRealtimeSession } from '../hooks/useRealtimeSession';
 import { TeacherLiveEditor } from '../components/live/TeacherLiveEditor';
 import { StudentLiveViewer } from '../components/live/StudentLiveViewer';
@@ -28,17 +29,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export const LiveClassPage: React.FC = () => {
   const { isAdmin } = useAuthStore();
-  const {
-    currentSession,
-    tasks,
-    doubts,
-    liveCode,
-    activeTask,
-    setActiveTask,
-    teacherExecution,
-    teacherStdin,
-    isTeacherRunning,
-  } = useSessionStore();
+
+  // Granular atomic selectors: Prevents cursor moves from re-rendering the whole page
+  const currentSession = useClassroomStore((s) => s.currentSession);
+  const tasks = useClassroomStore((s) => s.tasks);
+  const doubts = useClassroomStore((s) => s.doubts);
+  const activeTask = useClassroomStore((s) => s.activeTask);
+  const setActiveTask = useClassroomStore((s) => s.setActiveTask);
+
+  const liveCode = useEditorStore((s) => s.liveCode);
+  const teacherExecution = useEditorStore((s) => s.teacherExecution);
+  const teacherStdin = useEditorStore((s) => s.teacherStdin);
+  const isTeacherRunning = useEditorStore((s) => s.isTeacherRunning);
   
   // Layout mode: 'split' (60/40) | 'full' (100% code)
   const [layoutMode, setLayoutMode] = useState<'split' | 'full'>('split');
@@ -314,7 +316,7 @@ export const LiveClassPage: React.FC = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setActiveDrawer(null)}
-                className="fixed inset-0 bg-slate-900/20 backdrop-blur-2xs z-40 cursor-pointer"
+                className="fixed inset-0 bg-slate-950/40 z-40 cursor-pointer"
               />
 
               {/* Drawer Sheet */}
@@ -441,7 +443,7 @@ export const LiveClassPage: React.FC = () => {
         <div className="fixed top-4 right-4 z-50">
           <button
             onClick={() => setIsZenMode(false)}
-            className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-md text-slate-800 rounded-full text-xs font-bold shadow-xl hover:bg-white transition-all cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 bg-white text-slate-800 rounded-full text-xs font-bold shadow-xl hover:bg-slate-50 border border-slate-200 transition-all cursor-pointer"
           >
             <Minimize2 className="w-3.5 h-3.5" />
             <span>Exit Zen Mode</span>

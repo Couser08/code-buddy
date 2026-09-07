@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Send, Check } from 'lucide-react';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useClassroomStore } from '../../stores/classroomStore';
 import { useAuthStore } from '../../stores/authStore';
 
 interface QuickDoubtModalProps {
@@ -9,7 +9,8 @@ interface QuickDoubtModalProps {
 }
 
 export const QuickDoubtModal: React.FC<QuickDoubtModalProps> = ({ isOpen, onClose }) => {
-  const { currentSession, addDoubt } = useSessionStore();
+  const currentSession = useClassroomStore((s) => s.currentSession);
+  const addDoubt = useClassroomStore((s) => s.addDoubt);
   const { user, profile } = useAuthStore();
   const [doubtText, setDoubtText] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -48,7 +49,7 @@ export const QuickDoubtModal: React.FC<QuickDoubtModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 animate-in fade-in duration-200">
       <div 
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md bg-white rounded-[32px] p-6 shadow-2xl border border-slate-200/90 space-y-4"

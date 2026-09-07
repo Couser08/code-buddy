@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { QuickDoubtModal } from './components/common/QuickDoubtModal';
 import { AuthModal } from './components/auth/AuthModal';
 import { useAuthStore } from './stores/authStore';
+import { usePerformanceStore } from './stores/performanceStore';
 
 // Code-split route components to minimize initial bundle size and speed up FCP/LCP
 const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })));
@@ -30,9 +31,17 @@ const RouteLoader: React.FC = () => (
 
 export const App: React.FC = () => {
   const { initialize, user, isLoading } = useAuthStore();
+  const isLiteMode = usePerformanceStore((s) => s.isLiteMode);
   const [quickDoubtOpen, setQuickDoubtOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [hasPromptedAuth, setHasPromptedAuth] = useState(false);
+
+  // Sync lite-mode class on root HTML element for global GPU acceleration
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('lite-mode', isLiteMode);
+    }
+  }, [isLiteMode]);
 
   useEffect(() => {
     initialize();

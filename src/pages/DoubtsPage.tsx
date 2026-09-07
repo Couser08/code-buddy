@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { useSessionStore } from '../stores/sessionStore';
+import { useClassroomStore } from '../stores/classroomStore';
 import { useAuthStore } from '../stores/authStore';
 import { DoubtQueuePanel } from '../components/live/DoubtQueuePanel';
 import { QuickDoubtModal } from '../components/common/QuickDoubtModal';
 import { HelpCircle, MessageSquarePlus, Filter, Sparkles } from 'lucide-react';
 
 export const DoubtsPage: React.FC = () => {
-  const { doubts } = useSessionStore();
+  const doubts = useClassroomStore((s) => s.doubts);
   const { isAdmin } = useAuthStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
 

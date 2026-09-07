@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react';
 import { X, Play, Send, CheckCircle, RefreshCw, Terminal, Star, CornerDownLeft } from 'lucide-react';
 import { Task, Submission } from '../../types/database';
 import { executeCodeOnJudge0, EnhancedExecutionResult } from '../../lib/judge0';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useClassroomStore } from '../../stores/classroomStore';
 import { useAuthStore } from '../../stores/authStore';
 
 interface TaskSubmissionModalProps {
@@ -24,7 +24,9 @@ const MONACO_TASK_OPTIONS = {
 };
 
 export const TaskSubmissionModal: React.FC<TaskSubmissionModalProps> = ({ task, onClose }) => {
-  const { addSubmission, submissions, updateSubmission } = useSessionStore();
+  const addSubmission = useClassroomStore((s) => s.addSubmission);
+  const submissions = useClassroomStore((s) => s.submissions);
+  const updateSubmission = useClassroomStore((s) => s.updateSubmission);
   const { user, profile, isAdmin } = useAuthStore();
 
   const existingSubmission = submissions.find(
@@ -102,7 +104,7 @@ export const TaskSubmissionModal: React.FC<TaskSubmissionModalProps> = ({ task, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 animate-in fade-in duration-200">
       <div 
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"

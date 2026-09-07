@@ -1,11 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, ArrowRight } from 'lucide-react';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useClassroomStore } from '../../stores/classroomStore';
 
 export const LiveNowCard: React.FC = () => {
   const navigate = useNavigate();
-  const { currentSession, onlineCount } = useSessionStore();
+  const currentSession = useClassroomStore((s) => s.currentSession);
+  const onlineCount = useClassroomStore((s) => s.onlineCount);
 
   const studentAvatars = [
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',

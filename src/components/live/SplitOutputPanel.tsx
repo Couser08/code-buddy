@@ -16,7 +16,8 @@ import {
   BrainCircuit,
 } from 'lucide-react';
 import { EnhancedExecutionResult } from '../../lib/judge0';
-import { traceCCode, ExecutionStep } from '../../lib/visualizer/cVisualTracer';
+import { getTraceForCode } from '../../lib/visualizer/precomputedTraces';
+import { ExecutionStep } from '../../lib/visualizer/cVisualTracer';
 import { MemoryCanvas } from '../visualizer/MemoryCanvas';
 import { HinglishMentorCard } from '../visualizer/HinglishMentorCard';
 import { PlaybackControls } from '../visualizer/PlaybackControls';
@@ -54,10 +55,23 @@ export const SplitOutputPanel: React.FC<SplitOutputPanelProps> = ({
   const terminalBottomRef = useRef<HTMLDivElement>(null);
 
   const [visualStepIndex, setVisualStepIndex] = useState<number>(0);
-  const visualSteps: ExecutionStep[] = useMemo(() => {
-    if (!code) return [];
-    return traceCCode(code);
-  }, [code]);
+  const [visualSteps, setVisualSteps] = useState<ExecutionStep[]>([]);
+
+  // Lazy Game-Dev Computation:
+  // Only parse C execution steps when the user is actively viewing the 'memory' tab!
+  // Saves 100% of tracer CPU load during live typing in the terminal.
+  useEffect(() => {
+    if (activeTab !== 'memory' || !code) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      const steps = getTraceForCode(code);
+      setVisualSteps(steps);
+      setVisualStepIndex((prev) => Math.min(prev, Math.max(steps.length - 1, 0)));
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [activeTab, code]);
 
   const currentVisualStep = visualSteps[visualStepIndex] || visualSteps[0] || null;
 
